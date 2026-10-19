@@ -58,6 +58,8 @@ private:
     void adjustCurrentCapacity(int delta);
     void syncRuntimeCapacitiesToConfig();
     void applyConfigToRuntimeCapacities();
+    bool shouldHideOverlayForScope() const;
+    void updateScopeVisibility();
 
     static bool loadStoredImage(QImage* image);
     static bool persistImage(const QString& sourcePath, QImage* image,

@@ -245,14 +245,25 @@ void App::onKeyInput(const KeyBinding& binding)
         return;
     }
 
-    if (handleWeaponKey(binding)) {
-        // Weapon change only changes the current weapon.
-    } else if (handleToggleKey(binding)) {
-        // Handled by the toggle action.
-    } else if (handleResetKey(binding)) {
-        // Handled by the reset action.
-    } else {
-        handleCapacityKey(binding);
+    bool functionKeyPressed = handleWeaponKey(binding);
+    if (!functionKeyPressed) {
+        functionKeyPressed = handleToggleKey(binding);
+    }
+    if (!functionKeyPressed) {
+        functionKeyPressed = handleResetKey(binding);
+    }
+    if (!functionKeyPressed) {
+        functionKeyPressed = handleCapacityKey(binding);
+    }
+
+    // If the right button is still being held and the initial hide delay has
+    // already elapsed, any bound function key can change the current state.
+    // Re-evaluate immediately instead of waiting for another right press.
+    // Before the delay expires, the pending timer will evaluate the latest
+    // state when it fires, preserving ScopeDelayMs semantics.
+    if (m_rightButtonHeld && functionKeyPressed
+        && m_scopeDelayTimer != nullptr && !m_scopeDelayTimer->isActive()) {
+        updateScopeVisibility();
     }
 
     if (m_settings != nullptr && m_settings->isVisible()) {
@@ -287,23 +298,35 @@ void App::onScopeDelayElapsed()
     if (!m_rightButtonHeld) {
         return;
     }
+    updateScopeVisibility();
+}
 
+bool App::shouldHideOverlayForScope() const
+{
     if (m_runtime.CurrentWeapon == 2) {
-        m_overlay->hideForScope();
-        return;
+        return true;
     }
 
     const int capacity = runtimeCapacityForWeapon(m_runtime.CurrentWeapon);
     if (capacity <= 0) {
-        return;
+        return false;
     }
 
     const int ammoState = ammoStateForWeapon(m_runtime.CurrentWeapon);
-    if (ammoState == capacity - 1) {
+    return ammoState != capacity - 1;
+}
+
+void App::updateScopeVisibility()
+{
+    if (!m_rightButtonHeld) {
         return;
     }
 
-    m_overlay->hideForScope();
+    if (shouldHideOverlayForScope()) {
+        m_overlay->hideForScope();
+    } else if (!m_overlay->isVisible()) {
+        m_overlay->showCurrent();
+    }
 }
 
 void App::onCapacityDebounceElapsed()

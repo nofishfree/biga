@@ -188,11 +188,18 @@ quint16 virtualKey;
   else if (ammoState == capacity - 1) 不隐藏
   else hide
 
+右键保持期间，延迟已结束且按下已绑定功能的按键:
+  用最新 CurrentWeapon / ammoState / capacity 立即重新判断
+  需要隐藏 -> hide；已经不需要隐藏 -> show
+
 右键抬起:
   rightHeld = false
   取消计时器
   show overlay
 ```
+
+如果功能键在 ScopeDelayMs 到期前按下，不提前执行隐藏判断；仍在计时的
+singleShot 到期后会使用最新数据判断。
 
 `ScopeDelayMs` 只用于这里，不添加其他开镜逻辑。
 
