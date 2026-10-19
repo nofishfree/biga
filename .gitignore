@@ -1,0 +1,14 @@
+build/
+out/
+dist/
+.vs/
+.vscode/
+CMakeUserPresets.json
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+Thumbs.db
+Desktop.ini
+AUTO-MODE.md
+aqtinstall.log

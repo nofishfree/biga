@@ -1,0 +1,99 @@
+#include "TrayController.h"
+
+#include "Log.h"
+
+#include <QAction>
+#include <QApplication>
+#include <QIcon>
+#include <QMenu>
+#include <QSystemTrayIcon>
+#include <QTimer>
+
+TrayController::TrayController(QObject* parent)
+    : QObject(parent)
+{
+    m_menu = new QMenu();
+    m_menu->setObjectName(QStringLiteral("trayMenu"));
+
+    QAction* chooseImage =
+        m_menu->addAction(QStringLiteral("选择图片"));
+    QAction* restoreDot =
+        m_menu->addAction(QStringLiteral("还原白点"));
+    QAction* settings = m_menu->addAction(QStringLiteral("设置"));
+    QAction* quit = m_menu->addAction(QStringLiteral("退出"));
+
+    connect(chooseImage, &QAction::triggered, this,
+            &TrayController::chooseImageRequested);
+    connect(restoreDot, &QAction::triggered, this,
+            &TrayController::restoreDotRequested);
+    connect(settings, &QAction::triggered, this,
+            &TrayController::settingsRequested);
+    connect(quit, &QAction::triggered, this, &TrayController::quitRequested);
+
+    // PNG is the primary tray format because it is built into Qt and does not
+    // depend on the optional ICO image plugin. The ICO is still used for the
+    // executable and as a fallback.
+    QIcon icon(QStringLiteral(":/icons/app.png"));
+    if (icon.isNull()) {
+        icon = QIcon(QStringLiteral(":/icons/app.ico"));
+    }
+    if (icon.isNull()) {
+        icon = QApplication::windowIcon();
+    }
+
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+        Log::warning(QStringLiteral("系统通知区域不可用，托盘图标无法创建"));
+    } else if (icon.isNull()) {
+        Log::warning(QStringLiteral("托盘图标资源加载失败"));
+    }
+
+    m_trayIcon = new QSystemTrayIcon(icon, this);
+    m_trayIcon->setToolTip(QStringLiteral("BigA"));
+    m_trayIcon->setContextMenu(m_menu);
+
+    connect(m_trayIcon, &QSystemTrayIcon::activated, this,
+            [this](QSystemTrayIcon::ActivationReason reason) {
+                if (reason == QSystemTrayIcon::DoubleClick) {
+                    emit settingsRequested();
+                }
+            });
+}
+
+TrayController::~TrayController()
+{
+    if (m_trayIcon != nullptr) {
+        m_trayIcon->hide();
+        m_trayIcon->setContextMenu(nullptr);
+    }
+    delete m_menu;
+    m_menu = nullptr;
+}
+
+void TrayController::show()
+{
+    if (m_trayIcon == nullptr) {
+        return;
+    }
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+        Log::warning(QStringLiteral("系统通知区域不可用，跳过托盘显示"));
+        return;
+    }
+
+    m_trayIcon->show();
+    QTimer::singleShot(1200, this, [this] {
+        if (m_trayIcon == nullptr || !m_trayIcon->isVisible()) {
+            return;
+        }
+        if (m_trayIcon->geometry().isEmpty()) {
+            Log::warning(QStringLiteral(
+                "托盘图标未注册到通知区域。若程序从受限工作区启动，"
+                "Windows 可能以低完整性运行它；请从普通桌面位置启动。"));
+            return;
+        }
+        Log::info(QStringLiteral("托盘图标已注册: %1,%2 %3x%4")
+                      .arg(m_trayIcon->geometry().x())
+                      .arg(m_trayIcon->geometry().y())
+                      .arg(m_trayIcon->geometry().width())
+                      .arg(m_trayIcon->geometry().height()));
+    });
+}

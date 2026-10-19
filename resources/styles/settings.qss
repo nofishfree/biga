@@ -1,0 +1,101 @@
+QWidget#settingsWindow {
+    background-color: #141a22;
+    color: #e8eef7;
+    font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    font-size: 13px;
+    border: 1px solid #2a3646;
+}
+
+QWidget#titleBar {
+    background-color: #10151c;
+    border-bottom: 1px solid #26313f;
+}
+
+QPushButton#closeButton {
+    border: none;
+    background-color: transparent;
+    color: #aab8c9;
+    font-size: 20px;
+    font-weight: 400;
+    padding: 0;
+}
+
+QPushButton#closeButton:hover {
+    background-color: #c0392b;
+    color: #ffffff;
+}
+
+QPushButton#closeButton:pressed {
+    background-color: #a93226;
+}
+
+QWidget#settingsContent {
+    background-color: transparent;
+}
+
+QFrame#sectionCard {
+    background-color: #1a222c;
+    border: 1px solid #2a3542;
+    border-radius: 8px;
+}
+
+QLabel#sectionTitle {
+    color: #8fa5bd;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#fieldLabel,
+QLabel#capacityLabel {
+    color: #c7d4e3;
+}
+
+QLabel#capacityLabel {
+    color: #9fb0c3;
+}
+
+QLineEdit {
+    background-color: #0f151d;
+    border: 1px solid #344255;
+    border-radius: 6px;
+    color: #eaf2ff;
+    padding: 3px 9px;
+    selection-background-color: #2563eb;
+    selection-color: #ffffff;
+}
+
+QLineEdit:hover {
+    border-color: #455970;
+}
+
+QLineEdit:focus {
+    border-color: #4aa8ff;
+}
+
+QLineEdit#bindingEdit {
+    background-color: #111923;
+    color: #eaf2ff;
+}
+
+QLineEdit#bindingEdit[emptyBinding="true"] {
+    color: #74859a;
+}
+
+QLineEdit#bindingEdit[capturing="true"] {
+    background-color: #0b2a3f;
+    border: 2px solid #52b8ff;
+    color: #e9f7ff;
+    padding: 2px 8px;
+}
+
+QLineEdit#capacityEdit,
+QLineEdit#parameterEdit {
+    background-color: #0f151d;
+    color: #eaf2ff;
+}
+
+QLineEdit#capacityEdit:focus,
+QLineEdit#parameterEdit:focus {
+    border-color: #4aa8ff;
+    selection-background-color: #2563eb;
+}
