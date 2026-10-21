@@ -19,14 +19,12 @@ namespace {
 // uniformly by StatusOverlayWindow::m_scale.
 constexpr int kMainFontPixels = 40;
 constexpr int kSubFontPixels = 16;
-constexpr double kMainOutlineWidth = 3.5;
-constexpr double kSubOutlineWidth = 1.3;
+constexpr qreal kContentPadding = 2.0;
 constexpr double kSubscriptOverlap = 0.10;
 constexpr double kMinimumScale = 0.5;
 constexpr double kMaximumScale = 3.0;
 
 const QColor kTextFill(255, 255, 255);
-const QColor kTextOutline(0, 0, 0);
 
 struct ContentLayout {
     QFont mainFont;
@@ -41,8 +39,6 @@ struct ContentLayout {
     qreal subscriptX = 0.0;
     qreal width = 0.0;
     qreal height = 0.0;
-    qreal mainOutlineWidth = 0.0;
-    qreal subOutlineWidth = 0.0;
     bool hasSubscripts = false;
 };
 
@@ -66,10 +62,8 @@ ContentLayout makeContentLayout(int currentWeapon, int ammoState, int capacity,
 
     layout.mainFont = overlayFont(mainPixelSize);
     layout.subFont = overlayFont(subPixelSize);
-    layout.mainOutlineWidth = qMax(1.0, kMainOutlineWidth * scale);
-    layout.subOutlineWidth = qMax(0.8, kSubOutlineWidth * scale);
 
-    const qreal margin = std::ceil(layout.mainOutlineWidth / 2.0) + 1.0;
+    const qreal margin = std::max(1.0, kContentPadding * scale);
     const QFontMetricsF mainMetrics(layout.mainFont);
     const QFontMetricsF subMetrics(layout.subFont);
 
@@ -261,28 +255,22 @@ void StatusOverlayWindow::paintEvent(QPaintEvent* event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setPen(Qt::NoPen);
     painter.setBrush(kTextFill);
 
     auto drawText = [&painter](const QPointF& baseline, const QString& text,
-                               const QFont& font, qreal outlineWidth) {
-        QPen outlinePen(kTextOutline);
-        outlinePen.setWidthF(outlineWidth);
-        outlinePen.setJoinStyle(Qt::RoundJoin);
-        outlinePen.setCapStyle(Qt::RoundCap);
-        painter.setPen(outlinePen);
-
+                               const QFont& font) {
         QPainterPath path;
         path.addText(baseline, font, text);
-        painter.drawPath(path);
+        painter.fillPath(path, kTextFill);
     };
 
-    drawText(layout.mainBaseline, layout.mainText, layout.mainFont,
-             layout.mainOutlineWidth);
+    drawText(layout.mainBaseline, layout.mainText, layout.mainFont);
     if (layout.hasSubscripts) {
         drawText(layout.superscriptBaseline, layout.superscriptText,
-                 layout.subFont, layout.subOutlineWidth);
+                 layout.subFont);
         drawText(layout.subscriptBaseline, layout.subscriptText,
-                 layout.subFont, layout.subOutlineWidth);
+                 layout.subFont);
     }
 }
 

@@ -94,7 +94,7 @@ WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
   使用 `HWND_TOPMOST`；不设置 `WS_EX_TRANSPARENT`，整个窗口可接收左键拖动。
 - 自绘当前武器数字：一号~手枪映射为 1~4；非刀状态在数字右上方绘制弹药状态、
   右下方绘制容量；刀只绘制大号 3。
-- 主数字 40px、上下标 16px（1.0 比例），白色填充 + 黑色描边。
+- 主数字 40px、上下标 16px（1.0 比例），纯白色填充，无描边、无阴影。
 - 窗口尺寸由字体度量和内容决定，仅随缩放比例、武器/状态/容量变化；没有拖边 resize。
 - 缩放比例来自 `UserConfig::StatusOverlayScale`，范围 0.5~3.0、步进 0.1。
 - 左上角位置保存在 `StatusOverlayX/Y`；默认主屏可用区域右下角。启动恢复时若坐标
