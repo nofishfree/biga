@@ -4,6 +4,8 @@
 
 #include <QJsonObject>
 
+#include <limits>
+
 struct UserConfig {
     KeyBinding ToggleKey1;
     KeyBinding ToggleKey2;
@@ -27,6 +29,12 @@ struct UserConfig {
 
     KeyBinding CapacityIncKey;
     KeyBinding CapacityDecKey;
+
+    bool StatusOverlayEnabled = false;
+    // Sentinel values mean "no saved position yet".
+    int StatusOverlayX = std::numeric_limits<int>::min();
+    int StatusOverlayY = std::numeric_limits<int>::min();
+    double StatusOverlayScale = 1.0;
 
     static UserConfig defaults();
 

@@ -14,6 +14,7 @@ class QCloseEvent;
 class QGridLayout;
 class QKeyEvent;
 class QLabel;
+class QSlider;
 
 class SettingsWindow final : public QWidget {
     Q_OBJECT
@@ -26,6 +27,7 @@ public:
 
 signals:
     void configCommitted(const UserConfig& config);
+    void statusOverlayScalePreviewed(double scale);
 
 public slots:
     void handleRawInput(const KeyBinding& binding);
@@ -62,6 +64,8 @@ private:
 
     void loadBindings();
     UserConfig collectConfig() const;
+    void onStatusScaleSliderChanged(int value);
+    void updateStatusScaleValueLabel();
 
     FramelessTitleBar* m_titleBar = nullptr;
 
@@ -87,6 +91,8 @@ private:
 
     ParameterEdit* m_dotSize = nullptr;
     ParameterEdit* m_scopeDelay = nullptr;
+    QSlider* m_statusScaleSlider = nullptr;
+    QLabel* m_statusScaleValueLabel = nullptr;
 
     QVector<BindingSlot> m_bindingSlots;
     KeyBindingEdit* m_activeCapture = nullptr;

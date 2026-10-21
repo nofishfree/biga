@@ -10,12 +10,15 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScreen>
+#include <QSignalBlocker>
+#include <QSlider>
 #include <QStyle>
 #include <QVBoxLayout>
 
@@ -23,11 +26,13 @@
 
 namespace {
 
-constexpr int kFieldLabelWidth = 104;
+constexpr int kFieldLabelWidth = 128;
 constexpr int kBindingWidth = 156;
 constexpr int kCapacityLabelWidth = 76;
 constexpr int kNumberWidth = 108;
 constexpr int kControlHeight = 32;
+constexpr int kWindowWidth = 760;
+constexpr int kScaleLabelWidth = 44;
 
 }  // namespace
 
@@ -48,7 +53,7 @@ SettingsWindow::SettingsWindow(QWidget* parent)
         setStyleSheet(QString::fromUtf8(styleFile.readAll()));
     }
 
-    setFixedWidth(720);
+    setFixedWidth(kWindowWidth);
     if (layout() != nullptr) {
         layout()->activate();
     }
@@ -74,6 +79,13 @@ void SettingsWindow::loadConfig(const UserConfig& config)
     m_pistolCapacity->setValue(config.PistolCapacity);
     m_dotSize->setValue(config.DotSize);
     m_scopeDelay->setValue(config.ScopeDelayMs);
+
+    const QSignalBlocker blocker(m_statusScaleSlider);
+    const int scaleTenths =
+        std::clamp(static_cast<int>(std::lround(config.StatusOverlayScale * 10.0)),
+                   5, 30);
+    m_statusScaleSlider->setValue(scaleTenths);
+    updateStatusScaleValueLabel();
 }
 
 void SettingsWindow::centerOnPrimaryScreen()
@@ -215,6 +227,10 @@ void SettingsWindow::buildUi()
     group1Grid->addWidget(makeFieldLabel(QStringLiteral("重置/恢复")), 1, 0);
     m_resetKey = makeBindingEditor(group1Grid, 1, 1, &UserConfig::ResetKey,
                                    QStringLiteral("重置键"));
+    group1Grid->addWidget(makeFieldLabel(QStringLiteral("白点大小")), 2, 0);
+    m_dotSize = new ParameterEdit(this);
+    m_dotSize->setFixedSize(kNumberWidth, kControlHeight);
+    group1Grid->addWidget(m_dotSize, 2, 1);
 
     QGridLayout* group2Grid = nullptr;
     QWidget* group2 = createSection(QStringLiteral("武器热键"), &group2Grid);
@@ -262,32 +278,46 @@ void SettingsWindow::buildUi()
     m_pistolCapacity->setFixedSize(kNumberWidth, kControlHeight);
     group2Grid->addWidget(m_pistolCapacity, 3, 4);
 
+    group2Grid->addWidget(makeFieldLabel(QStringLiteral("容量+1")), 4, 0);
+    m_capacityIncKey = makeBindingEditor(
+        group2Grid, 4, 1, &UserConfig::CapacityIncKey,
+        QStringLiteral("容量+1 键"));
+    group2Grid->addWidget(makeFieldLabel(QStringLiteral("容量-1")), 5, 0);
+    m_capacityDecKey = makeBindingEditor(
+        group2Grid, 5, 1, &UserConfig::CapacityDecKey,
+        QStringLiteral("容量-1 键"));
+
     QGridLayout* group3Grid = nullptr;
     QWidget* group3 = createSection(QStringLiteral("参数"), &group3Grid);
     contentLayout->addWidget(group3);
 
-    group3Grid->addWidget(makeFieldLabel(QStringLiteral("白点大小")), 0, 0);
-    m_dotSize = new ParameterEdit(this);
-    m_dotSize->setFixedSize(kNumberWidth, kControlHeight);
-    group3Grid->addWidget(m_dotSize, 0, 1);
-
-    group3Grid->addWidget(makeFieldLabel(QStringLiteral("开镜延迟(ms)")), 1, 0);
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("开镜延迟(ms)")), 0, 0);
     m_scopeDelay = new ParameterEdit(this);
     m_scopeDelay->setFixedSize(kNumberWidth, kControlHeight);
-    group3Grid->addWidget(m_scopeDelay, 1, 1);
+    group3Grid->addWidget(m_scopeDelay, 0, 1);
 
-    QGridLayout* group4Grid = nullptr;
-    QWidget* group4 = createSection(QStringLiteral("容量增减热键"), &group4Grid);
-    contentLayout->addWidget(group4);
-
-    group4Grid->addWidget(makeFieldLabel(QStringLiteral("容量+1")), 0, 0);
-    m_capacityIncKey = makeBindingEditor(
-        group4Grid, 0, 1, &UserConfig::CapacityIncKey,
-        QStringLiteral("容量+1 键"));
-    group4Grid->addWidget(makeFieldLabel(QStringLiteral("容量-1")), 1, 0);
-    m_capacityDecKey = makeBindingEditor(
-        group4Grid, 1, 1, &UserConfig::CapacityDecKey,
-        QStringLiteral("容量-1 键"));
+    group3Grid->addWidget(
+        makeFieldLabel(QStringLiteral("状态显示缩放比例")), 1, 0);
+    auto* scaleControl = new QWidget(this);
+    auto* scaleLayout = new QHBoxLayout(scaleControl);
+    scaleLayout->setContentsMargins(0, 0, 0, 0);
+    scaleLayout->setSpacing(8);
+    m_statusScaleSlider = new QSlider(Qt::Horizontal, scaleControl);
+    m_statusScaleSlider->setObjectName(QStringLiteral("statusScaleSlider"));
+    m_statusScaleSlider->setRange(5, 30);
+    m_statusScaleSlider->setSingleStep(1);
+    m_statusScaleSlider->setPageStep(5);
+    m_statusScaleSlider->setValue(10);
+    m_statusScaleSlider->setFixedHeight(kControlHeight);
+    m_statusScaleValueLabel = new QLabel(QStringLiteral("1.0"), scaleControl);
+    m_statusScaleValueLabel->setObjectName(QStringLiteral("scaleValueLabel"));
+    m_statusScaleValueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_statusScaleValueLabel->setFixedWidth(kScaleLabelWidth);
+    scaleLayout->addWidget(m_statusScaleSlider, 1);
+    scaleLayout->addWidget(m_statusScaleValueLabel, 0);
+    group3Grid->addWidget(scaleControl, 1, 1, 1, 4);
+    connect(m_statusScaleSlider, &QSlider::valueChanged, this,
+            &SettingsWindow::onStatusScaleSliderChanged);
 
     contentLayout->addStretch(1);
 }
@@ -420,6 +450,22 @@ void SettingsWindow::loadBindings()
     }
 }
 
+void SettingsWindow::onStatusScaleSliderChanged(int value)
+{
+    Q_UNUSED(value);
+    updateStatusScaleValueLabel();
+    emit statusOverlayScalePreviewed(m_statusScaleSlider->value() / 10.0);
+}
+
+void SettingsWindow::updateStatusScaleValueLabel()
+{
+    if (m_statusScaleValueLabel == nullptr || m_statusScaleSlider == nullptr) {
+        return;
+    }
+    m_statusScaleValueLabel->setText(
+        QString::number(m_statusScaleSlider->value() / 10.0, 'f', 1));
+}
+
 UserConfig SettingsWindow::collectConfig() const
 {
     UserConfig config = m_workingConfig;
@@ -432,5 +478,6 @@ UserConfig SettingsWindow::collectConfig() const
     config.PistolCapacity = m_pistolCapacity->value();
     config.DotSize = m_dotSize->value();
     config.ScopeDelayMs = m_scopeDelay->value();
+    config.StatusOverlayScale = m_statusScaleSlider->value() / 10.0;
     return config;
 }

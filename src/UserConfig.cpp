@@ -1,6 +1,7 @@
 #include "UserConfig.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace {
@@ -19,6 +20,30 @@ int boundedInteger(const QJsonObject& object, const QString& key, int fallback,
     }
     const int parsed = value.toInt(fallback);
     return std::clamp(parsed, minimum, maximum);
+}
+
+int integerValue(const QJsonObject& object, const QString& key, int fallback)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isDouble()) {
+        return fallback;
+    }
+    return value.toInt(fallback);
+}
+
+double statusScaleValue(const QJsonObject& object, const QString& key,
+                        double fallback)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isDouble()) {
+        return fallback;
+    }
+    const double parsed = value.toDouble(fallback);
+    if (!std::isfinite(parsed)) {
+        return fallback;
+    }
+    const double clamped = std::clamp(parsed, 0.5, 3.0);
+    return std::round(clamped * 10.0) / 10.0;
 }
 
 }  // namespace
@@ -80,6 +105,11 @@ QJsonObject UserConfig::toJson() const
                   CapacityIncKey.toJsonValue());
     object.insert(QStringLiteral("capacityDecKey"),
                   CapacityDecKey.toJsonValue());
+
+    object.insert(QStringLiteral("statusOverlayEnabled"), StatusOverlayEnabled);
+    object.insert(QStringLiteral("statusOverlayX"), StatusOverlayX);
+    object.insert(QStringLiteral("statusOverlayY"), StatusOverlayY);
+    object.insert(QStringLiteral("statusOverlayScale"), StatusOverlayScale);
     return object;
 }
 
@@ -126,6 +156,20 @@ UserConfig UserConfig::fromJson(const QJsonObject& object)
 
     readBinding(QStringLiteral("capacityIncKey"), config.CapacityIncKey);
     readBinding(QStringLiteral("capacityDecKey"), config.CapacityDecKey);
+
+    const QJsonValue enabled =
+        object.value(QStringLiteral("statusOverlayEnabled"));
+    if (enabled.isBool()) {
+        config.StatusOverlayEnabled = enabled.toBool();
+    }
+
+    config.StatusOverlayX = integerValue(
+        object, QStringLiteral("statusOverlayX"), config.StatusOverlayX);
+    config.StatusOverlayY = integerValue(
+        object, QStringLiteral("statusOverlayY"), config.StatusOverlayY);
+    config.StatusOverlayScale =
+        statusScaleValue(object, QStringLiteral("statusOverlayScale"),
+                         config.StatusOverlayScale);
 
     return config;
 }

@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QIcon>
 #include <QMenu>
+#include <QSignalBlocker>
 #include <QSystemTrayIcon>
 #include <QTimer>
 
@@ -19,6 +20,10 @@ TrayController::TrayController(QObject* parent)
         m_menu->addAction(QStringLiteral("选择图片"));
     QAction* restoreDot =
         m_menu->addAction(QStringLiteral("还原白点"));
+    m_statusOverlayAction =
+        m_menu->addAction(QStringLiteral("状态显示"));
+    m_statusOverlayAction->setCheckable(true);
+    m_statusOverlayAction->setChecked(false);
     QAction* settings = m_menu->addAction(QStringLiteral("设置"));
     QAction* quit = m_menu->addAction(QStringLiteral("退出"));
 
@@ -26,6 +31,8 @@ TrayController::TrayController(QObject* parent)
             &TrayController::chooseImageRequested);
     connect(restoreDot, &QAction::triggered, this,
             &TrayController::restoreDotRequested);
+    connect(m_statusOverlayAction, &QAction::triggered, this,
+            &TrayController::statusOverlayToggled);
     connect(settings, &QAction::triggered, this,
             &TrayController::settingsRequested);
     connect(quit, &QAction::triggered, this, &TrayController::quitRequested);
@@ -96,4 +103,13 @@ void TrayController::show()
                       .arg(m_trayIcon->geometry().width())
                       .arg(m_trayIcon->geometry().height()));
     });
+}
+
+void TrayController::setStatusOverlayChecked(bool checked)
+{
+    if (m_statusOverlayAction == nullptr) {
+        return;
+    }
+    const QSignalBlocker blocker(m_statusOverlayAction);
+    m_statusOverlayAction->setChecked(checked);
 }

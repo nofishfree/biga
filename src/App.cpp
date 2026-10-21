@@ -7,6 +7,7 @@
 #include "MainOverlayWindow.h"
 #include "RawInputManager.h"
 #include "SettingsWindow.h"
+#include "StatusOverlayWindow.h"
 #include "TrayController.h"
 
 #include <QCoreApplication>
@@ -21,8 +22,31 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <cmath>
+#include <exception>
+#include <limits>
 
 App* App::s_instance = nullptr;
+
+namespace {
+
+constexpr double kMinStatusOverlayScale = 0.5;
+constexpr double kMaxStatusOverlayScale = 3.0;
+
+double normalizedStatusOverlayScale(double scale)
+{
+    const double clamped =
+        std::clamp(scale, kMinStatusOverlayScale, kMaxStatusOverlayScale);
+    return std::round(clamped * 10.0) / 10.0;
+}
+
+bool hasSavedStatusOverlayPosition(const UserConfig& config)
+{
+    return config.StatusOverlayX != std::numeric_limits<int>::min()
+           && config.StatusOverlayY != std::numeric_limits<int>::min();
+}
+
+}  // namespace
 
 App::App(QObject* parent)
     : QObject(parent)
@@ -38,6 +62,10 @@ App::~App()
         }
         delete m_settings;
         m_settings = nullptr;
+    }
+
+    if (m_statusOverlay != nullptr) {
+        m_statusOverlay->close();
     }
 
     if (m_capacityDebounceTimer != nullptr
@@ -96,9 +124,13 @@ bool App::initialize()
             &App::chooseImage);
     connect(m_tray, &TrayController::restoreDotRequested, this,
             &App::restoreDot);
+    connect(m_tray, &TrayController::statusOverlayToggled, this,
+            &App::onStatusOverlayToggled);
     connect(m_tray, &TrayController::settingsRequested, this,
             &App::openSettings);
     connect(m_tray, &TrayController::quitRequested, this, &App::requestQuit);
+    m_tray->setStatusOverlayChecked(
+        m_configManager->config().StatusOverlayEnabled);
     // Show after the event loop has started; this is more reliable for the
     // Windows notification-area registration than shell calls in initialize().
     QTimer::singleShot(0, m_tray, &TrayController::show);
@@ -118,6 +150,16 @@ bool App::initialize()
         Log::error(QStringLiteral("RawInput 初始化失败，全局热键不可用"));
     }
 
+    // StatusOverlayWindow is a QWidget, so it is created on the GUI thread
+    // after the event loop starts. Exceptions are caught and do not affect the
+    // overlay, tray, settings, RawInput, or persistence.
+    QTimer::singleShot(0, this, [this] {
+        if (createStatusOverlayIfNeeded()
+            && m_configManager->config().StatusOverlayEnabled) {
+            showStatusOverlayIfEnabled();
+        }
+    });
+
     m_initialized = true;
     Log::info(QStringLiteral("应用已启动"));
     return true;
@@ -134,6 +176,10 @@ void App::requestQuit()
 
     if (m_settings != nullptr && m_settings->isVisible()) {
         m_settings->close();
+    }
+
+    if (m_statusOverlay != nullptr) {
+        m_statusOverlay->close();
     }
 
     if (m_capacityDebounceTimer != nullptr
@@ -190,6 +236,8 @@ void App::openSettings()
         m_settings = new SettingsWindow();
         connect(m_settings, &SettingsWindow::configCommitted, this,
                 &App::onSettingsConfigCommitted);
+        connect(m_settings, &SettingsWindow::statusOverlayScalePreviewed,
+                this, &App::onStatusOverlayScalePreview);
     }
 
     if (m_settings->isVisible()) {
@@ -206,8 +254,115 @@ void App::openSettings()
     m_settings->activateWindow();
 }
 
+bool App::createStatusOverlayIfNeeded()
+{
+    if (m_statusOverlay != nullptr) {
+        return true;
+    }
+
+    try {
+        m_statusOverlay = std::make_unique<StatusOverlayWindow>();
+        connect(m_statusOverlay.get(), &StatusOverlayWindow::dragFinished,
+                this, &App::onStatusOverlayDragFinished);
+
+        const UserConfig& config = m_configManager->config();
+        m_statusOverlay->setScale(
+            normalizedStatusOverlayScale(config.StatusOverlayScale));
+        refreshStatusOverlayContent();
+
+        if (hasSavedStatusOverlayPosition(config)) {
+            m_statusOverlay->restorePosition(
+                QPoint(config.StatusOverlayX, config.StatusOverlayY));
+        } else {
+            m_statusOverlay->placeAtDefaultPosition();
+        }
+
+        m_statusOverlay->hide();
+        m_statusOverlayCreationFailed = false;
+        return true;
+    } catch (const std::exception& exception) {
+        Log::error(QStringLiteral("创建状态显示窗口失败: %1")
+                       .arg(QString::fromUtf8(exception.what())));
+    } catch (...) {
+        Log::error(QStringLiteral("创建状态显示窗口失败: 未知异常"));
+    }
+
+    m_statusOverlay.reset();
+    m_statusOverlayCreationFailed = true;
+    return false;
+}
+
+void App::showStatusOverlayIfEnabled()
+{
+    if (m_statusOverlay == nullptr
+        || !m_configManager->config().StatusOverlayEnabled) {
+        return;
+    }
+
+    refreshStatusOverlayContent();
+    m_statusOverlay->ensureVisibleOnScreen();
+    m_statusOverlay->showNoActivate();
+}
+
+void App::refreshStatusOverlayContent()
+{
+    if (m_statusOverlay == nullptr) {
+        return;
+    }
+
+    const int weapon = std::clamp(m_runtime.CurrentWeapon, 0, 3);
+    const bool isKnife = weapon == 2;
+    const int ammoState = isKnife ? 0 : ammoStateForWeapon(weapon);
+    const int capacity = isKnife ? 0 : runtimeCapacityForWeapon(weapon);
+    m_statusOverlay->setRuntimeStatus(weapon, ammoState, capacity);
+}
+
+void App::onStatusOverlayToggled(bool enabled)
+{
+    UserConfig& config = m_configManager->config();
+    config.StatusOverlayEnabled = enabled;
+    m_configManager->SaveUserConfigAsync();
+
+    if (!enabled) {
+        if (m_statusOverlay != nullptr) {
+            m_statusOverlay->hide();
+        }
+        return;
+    }
+
+    if (!createStatusOverlayIfNeeded()) {
+        Log::error(QStringLiteral(
+            "状态显示窗口创建失败；配置保持启用，可取消后再次勾选重试"));
+        return;
+    }
+    showStatusOverlayIfEnabled();
+}
+
+void App::onStatusOverlayScalePreview(double scale)
+{
+    if (m_statusOverlay == nullptr) {
+        return;
+    }
+    m_statusOverlay->setScale(scale);
+}
+
+void App::onStatusOverlayDragFinished(const QPoint& topLeft)
+{
+    UserConfig& config = m_configManager->config();
+    if (config.StatusOverlayX == topLeft.x()
+        && config.StatusOverlayY == topLeft.y()) {
+        return;
+    }
+
+    config.StatusOverlayX = topLeft.x();
+    config.StatusOverlayY = topLeft.y();
+    m_configManager->SaveUserConfigAsync();
+}
+
 void App::onSettingsConfigCommitted(const UserConfig& config)
 {
+    const UserConfig& current = m_configManager->config();
+
     UserConfig normalized = config;
     normalized.Weapon1Capacity =
         std::clamp(normalized.Weapon1Capacity, Constants::kMinCapacity,
@@ -220,6 +375,15 @@ void App::onSettingsConfigCommitted(const UserConfig& config)
                    Constants::kMaxCapacity);
     normalized.DotSize = std::max(0, normalized.DotSize);
     normalized.ScopeDelayMs = std::max(0, normalized.ScopeDelayMs);
+    normalized.StatusOverlayScale =
+        normalizedStatusOverlayScale(normalized.StatusOverlayScale);
+
+    // These fields are owned by the tray action and by dragging the status
+    // window, not by the settings UI. Preserve their latest values even if the
+    // settings window was opened before they changed.
+    normalized.StatusOverlayEnabled = current.StatusOverlayEnabled;
+    normalized.StatusOverlayX = current.StatusOverlayX;
+    normalized.StatusOverlayY = current.StatusOverlayY;
 
     m_configManager->config() = normalized;
     applyConfigToRuntimeCapacities();
@@ -230,6 +394,11 @@ void App::onSettingsConfigCommitted(const UserConfig& config)
     m_runtime.PistolAmmoState = 0;
 
     m_overlay->applyDotSize(normalized.DotSize);
+
+    if (m_statusOverlay != nullptr) {
+        m_statusOverlay->setScale(normalized.StatusOverlayScale);
+    }
+    refreshStatusOverlayContent();
 
     // The settings close is the final authority over pending +1/-1 debounce
     // work. Cancel it and save the configuration that was just committed.
@@ -254,6 +423,10 @@ void App::onKeyInput(const KeyBinding& binding)
     }
     if (!functionKeyPressed) {
         functionKeyPressed = handleCapacityKey(binding);
+    }
+
+    if (functionKeyPressed) {
+        refreshStatusOverlayContent();
     }
 
     // If the right button is still being held and the initial hide delay has

@@ -34,6 +34,8 @@ qt_add_executable(BigA WIN32
     src/RuntimeState.h
     src/SettingsWindow.cpp
     src/SettingsWindow.h
+    src/StatusOverlayWindow.cpp
+    src/StatusOverlayWindow.h
     src/TrayController.cpp
     src/TrayController.h
     src/UserConfig.cpp

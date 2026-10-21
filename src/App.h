@@ -5,6 +5,7 @@
 #include "UserConfig.h"
 
 #include <QObject>
+#include <QPoint>
 
 #include <memory>
 
@@ -13,6 +14,7 @@ class MainOverlayWindow;
 class QImage;
 class RawInputManager;
 class SettingsWindow;
+class StatusOverlayWindow;
 class TrayController;
 class QTimer;
 
@@ -34,6 +36,13 @@ private:
     void openSettings();
 
     void onSettingsConfigCommitted(const UserConfig& config);
+
+    bool createStatusOverlayIfNeeded();
+    void showStatusOverlayIfEnabled();
+    void refreshStatusOverlayContent();
+    void onStatusOverlayToggled(bool enabled);
+    void onStatusOverlayScalePreview(double scale);
+    void onStatusOverlayDragFinished(const QPoint& topLeft);
 
     void onKeyInput(const KeyBinding& binding);
     void onEscapePressed();
@@ -69,6 +78,7 @@ private:
 
     std::unique_ptr<ConfigManager> m_configManager;
     std::unique_ptr<MainOverlayWindow> m_overlay;
+    std::unique_ptr<StatusOverlayWindow> m_statusOverlay;
     RawInputManager* m_rawInput = nullptr;
     TrayController* m_tray = nullptr;
     SettingsWindow* m_settings = nullptr;
@@ -78,6 +88,7 @@ private:
 
     RuntimeState m_runtime;
     bool m_rightButtonHeld = false;
+    bool m_statusOverlayCreationFailed = false;
     bool m_quitting = false;
     bool m_initialized = false;
 };

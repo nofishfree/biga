@@ -28,12 +28,13 @@ UI / 控制层
 | `App` | 单例编排器。创建窗口/托盘/RawInput/定时器；处理武器、切换、重置、容量与右键隐藏规则；统一退出。 |
 | `MainOverlayWindow` | 只覆盖内容区域。白点由 `paintEvent` 绘制；图片按原始尺寸绘制；透明、置顶、无边框、Tool、点击穿透、不抢焦点、居中。 |
 | `RawInputManager` | 创建原生消息窗口，注册键盘/鼠标 `RIDEV_INPUTSINK`，解析 `WM_INPUT`，忽略键盘自动重复，输出 `KeyBinding` 与右键状态。 |
+| `StatusOverlayWindow` | 独立的透明置顶状态窗口。自绘当前武器数字、右上上标和右下下标；整个窗口可左键拖动；尺寸只随缩放比例和内容变化；保存/恢复左上角坐标。 |
 | `ConfigManager` | 启动读取一次 `user-config.json`；后台专用线程串行保存最新快照；临时文件 + Win32 原子替换；所有异常在内部捕获并写日志；提供等待接口。 |
 | `UserConfig` | 题目给定的全部字段、默认值、JSON 序列化/反序列化；不包含图片路径。 |
 | `RuntimeState` | `CurrentWeapon`、三个弹药状态、三个运行时容量副本。 |
 | `KeyBinding` | 键盘扫描码 + 扩展标志 + 规范化 VK；鼠标中键/侧键/滚轮；显示名；JSON；相等匹配。 |
-| `TrayController` | 托盘图标和固定顺序菜单；双击打开设置。 |
-| `SettingsWindow` | 720px 宽的无边框单例设置窗口；键入框、容量框、参数框；关闭时提交并发出 `configCommitted`。 |
+| `TrayController` | 托盘图标和固定顺序菜单；双击打开设置；“状态显示”可勾选项。 |
+| `SettingsWindow` | 760px 宽的无边框单例设置窗口；键入框、容量框、参数框、状态显示缩放滑块；关闭时提交并发出 `configCommitted`。 |
 | `KeyBindingEdit` | 只读按键显示框；左键进入捕获态；右键清空；捕获态高亮；空绑定显示“未绑定”。 |
 | `CapacityEdit` | 0~9 单字符输入；按合法数字立即写入并失焦；其他按键吞掉并继续等待；Tab/Enter 失焦；不做失焦修正。 |
 | `ParameterEdit` | 只允许十进制数字；聚焦全选；Tab/Enter/其他控件失焦；空/非法恢复原值。 |
@@ -84,6 +85,37 @@ WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
    `%APPDATA%\BigA\current-image.img`。
 4. 启动时固定文件存在且可解码则显示图片，否则显示白点。
 5. “还原白点”只切换显示状态，不删除固定文件。
+
+### 状态显示窗口
+
+`StatusOverlayWindow` 是独立于主叠层的第二个透明置顶窗口：
+
+- 无标题栏、无边框、`Qt::Tool`、`WS_EX_NOACTIVATE`、`WS_EX_TOOLWINDOW`，
+  使用 `HWND_TOPMOST`；不设置 `WS_EX_TRANSPARENT`，整个窗口可接收左键拖动。
+- 自绘当前武器数字：一号~手枪映射为 1~4；非刀状态在数字右上方绘制弹药状态、
+  右下方绘制容量；刀只绘制大号 3。
+- 主数字 40px、上下标 16px（1.0 比例），白色填充 + 黑色描边。
+- 窗口尺寸由字体度量和内容决定，仅随缩放比例、武器/状态/容量变化；没有拖边 resize。
+- 缩放比例来自 `UserConfig::StatusOverlayScale`，范围 0.5~3.0、步进 0.1。
+- 左上角位置保存在 `StatusOverlayX/Y`；默认主屏可用区域右下角。启动恢复时若坐标
+  不在任何屏幕可用区域，则回退右下角。缩放和设置关闭时会把窗口约束回屏幕内。
+- 拖动结束通过 `dragFinished` 信号写入配置并异步保存。
+- 创建在主线程延迟执行（`QTimer::singleShot(0, ...)`），构造和初始化异常被捕获，
+  失败只记录日志，不影响主窗口、托盘、RawInput、设置。托盘的“状态显示”再次勾选时
+  会重试创建。
+
+托盘菜单顺序为“选择图片”“还原白点”“状态显示”“设置”“退出”。“状态显示”
+为可勾选项，默认 false，勾选/取消立即保存。
+
+配置增量：
+
+```text
+StatusOverlayEnabled  bool，默认 false
+StatusOverlayX/Y      int，默认 INT_MIN（尚未保存位置的哨兵值）
+StatusOverlayScale    double，默认 1.0，读取时限制在 0.5~3.0 并保留一位小数
+```
+
+勾选/取消、拖动结束、设置关闭分别通过 `SaveUserConfigAsync()` 保存。
 
 ## 3. RawInput
 
@@ -231,23 +263,26 @@ void waitForPendingSaves();
 
 `App::onSettingsConfigCommitted`：
 
-1. 规范化容量/白点/延迟并写入 `ConfigManager`。
-2. 三个运行时容量 = 界面容量。
-3. `CurrentWeapon=0`，三个弹药状态=0。
-4. 立即应用白点大小。
-5. 停止容量防抖计时器。
-6. `SaveUserConfigAsync()`。
+1. 规范化容量/白点/延迟/状态显示缩放并写入 `ConfigManager`。
+2. 保留由托盘和拖动维护的 `StatusOverlayEnabled/StatusOverlayX/StatusOverlayY`。
+3. 三个运行时容量 = 界面容量。
+4. `CurrentWeapon=0`，三个弹药状态=0。
+5. 立即应用白点大小；若状态窗口已创建，应用新缩放并刷新内容、约束位置。
+6. 停止容量防抖计时器。
+7. `SaveUserConfigAsync()`。
 
 ### 退出
 
 托盘“退出”调用 `App::requestQuit()`：
 
 1. 若设置窗口可见，先 `close()`，走设置关闭提交与保存。
-2. 若容量防抖仍在计时，停止、同步容量、再调用保存。
-3. `waitForPendingSaves()` 等待所有保存结束；保存失败也已记录，不阻断退出。
-4. 注销 RawInput，`QCoreApplication::quit()`。
+2. 关闭状态显示窗口。
+3. 若容量防抖仍在计时，停止、同步容量、再调用保存。
+4. `waitForPendingSaves()` 等待所有保存结束；保存失败也已记录，不阻断退出。
+5. 注销 RawInput，`QCoreApplication::quit()`。
 
-`App` 析构时再执行一次可见设置窗口关闭、挂起防抖提交与等待，覆盖非托盘退出路径。
+`App` 析构时再执行一次可见设置窗口关闭、状态窗口关闭、挂起防抖提交与等待，
+覆盖非托盘退出路径。
 
 ## 7. 单实例
 

@@ -57,6 +57,20 @@ C:\Users\Administrator\AppData\Local\Programs\BigA\BigA.exe
 
 配置使用临时文件 + `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` 原子替换，并只在启动时读取一次。图片路径不写入配置；固定文件按内容识别格式，GIF 只显示首帧。
 
+## 状态显示窗口
+
+托盘菜单“状态显示”可勾选一个独立的透明置顶小窗口：
+
+- 显示当前武器编号，右上上标为弹药状态，右下下标为容量；刀只显示大号 3。
+- 整个窗口左键可拖动，位置在拖动结束时保存。
+- 默认显示在主屏右下角；位置不在任何屏幕时回退右下角。
+- 设置界面的“参数”组提供 0.5~3.0、步进 0.1 的缩放滑块，拖动实时预览，
+  设置关闭时保存。
+- 开关状态、位置、缩放分别保存在 `statusOverlayEnabled`、
+  `statusOverlayX/Y`、`statusOverlayScale` 配置字段中。
+- 状态窗口在 GUI 主线程延迟创建；创建失败只记录日志，不影响主功能，
+  再次勾选托盘“状态显示”可重试。
+
 ## 图标
 
 `resources/app.png` 用于托盘图标，`resources/app.ico` 用于可执行文件和图标回退。两者当前都是根据界面风格生成的占位图标。任务要求使用用户提供的 `.ico`，但工作区中未包含该文件；将原始图标覆盖保存为上述文件后重新构建即可。
@@ -91,6 +105,7 @@ src/
   RawInputManager.*
   RuntimeState.h
   SettingsWindow.*
+  StatusOverlayWindow.*
   TrayController.*
   UserConfig.*
   widgets/
