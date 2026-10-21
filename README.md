@@ -55,7 +55,7 @@ C:\Users\Administrator\AppData\Local\Programs\BigA\BigA.exe
 - 当前图片：`%APPDATA%\BigA\current-image.img`
 - 日志：`%APPDATA%\BigA\app.log`
 
-配置使用临时文件 + `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` 原子替换，并只在启动时读取一次。图片路径不写入配置；固定文件按内容识别格式，GIF 只显示首帧。
+配置使用临时文件 + `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` 原子替换，并只在启动时读取一次。读取器只接受当前 schema；文件缺失、字段缺失或类型/范围不兼容时整体使用代码默认值，不做旧版本迁移或部分字段兜底。图片路径不写入配置；固定文件按内容识别格式，GIF 只显示首帧。
 
 ## 状态显示窗口
 

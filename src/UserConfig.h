@@ -5,6 +5,7 @@
 #include <QJsonObject>
 
 #include <limits>
+#include <optional>
 
 struct UserConfig {
     KeyBinding ToggleKey1;
@@ -39,5 +40,7 @@ struct UserConfig {
     static UserConfig defaults();
 
     QJsonObject toJson() const;
-    static UserConfig fromJson(const QJsonObject& object);
+    // Returns nullopt when the object does not match the current schema. In
+    // that case the caller must use defaults(); there is no compatibility path.
+    static std::optional<UserConfig> fromJson(const QJsonObject& object);
 };

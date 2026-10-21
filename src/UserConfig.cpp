@@ -1,6 +1,5 @@
 #include "UserConfig.h"
 
-#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -11,39 +10,120 @@ KeyBinding keyboardBinding(quint16 scanCode, bool extended, quint16 virtualKey)
     return KeyBinding::fromRawKeyboard(scanCode, extended, virtualKey);
 }
 
-int boundedInteger(const QJsonObject& object, const QString& key, int fallback,
-                   int minimum, int maximum)
+std::optional<int> jsonInteger(const QJsonValue& value, int minimum,
+                               int maximum)
 {
-    const QJsonValue value = object.value(key);
     if (!value.isDouble()) {
-        return fallback;
+        return std::nullopt;
     }
-    const int parsed = value.toInt(fallback);
-    return std::clamp(parsed, minimum, maximum);
+
+    const double number = value.toDouble();
+    if (!std::isfinite(number) || std::floor(number) != number
+        || number < minimum || number > maximum) {
+        return std::nullopt;
+    }
+    return static_cast<int>(number);
 }
 
-int integerValue(const QJsonObject& object, const QString& key, int fallback)
+bool readInteger(const QJsonObject& object, const QString& key, int minimum,
+                 int maximum, int* target)
 {
-    const QJsonValue value = object.value(key);
-    if (!value.isDouble()) {
-        return fallback;
+    const std::optional<int> value =
+        jsonInteger(object.value(key), minimum, maximum);
+    if (!value.has_value()) {
+        return false;
     }
-    return value.toInt(fallback);
+    *target = *value;
+    return true;
 }
 
-double statusScaleValue(const QJsonObject& object, const QString& key,
-                        double fallback)
+bool readBool(const QJsonObject& object, const QString& key, bool* target)
+{
+    const QJsonValue value = object.value(key);
+    if (!value.isBool()) {
+        return false;
+    }
+    *target = value.toBool();
+    return true;
+}
+
+bool readScale(const QJsonObject& object, const QString& key, double* target)
 {
     const QJsonValue value = object.value(key);
     if (!value.isDouble()) {
-        return fallback;
+        return false;
     }
-    const double parsed = value.toDouble(fallback);
-    if (!std::isfinite(parsed)) {
-        return fallback;
+
+    const double number = value.toDouble();
+    if (!std::isfinite(number) || number < 0.5 || number > 3.0) {
+        return false;
     }
-    const double clamped = std::clamp(parsed, 0.5, 3.0);
-    return std::round(clamped * 10.0) / 10.0;
+
+    const double tenths = number * 10.0;
+    const double rounded = std::round(tenths);
+    if (std::abs(tenths - rounded) > 1e-6) {
+        return false;
+    }
+
+    *target = rounded / 10.0;
+    return true;
+}
+
+bool readBinding(const QJsonObject& object, const QString& key,
+                 KeyBinding* target)
+{
+    const QJsonValue value = object.value(key);
+    if (value.isNull()) {
+        *target = {};
+        return true;
+    }
+    if (!value.isObject()) {
+        return false;
+    }
+
+    const QJsonObject bindingObject = value.toObject();
+    const QString type =
+        bindingObject.value(QStringLiteral("type")).toString();
+
+    if (type == QStringLiteral("mouseMiddle")) {
+        *target = KeyBinding::mouseMiddle();
+        return true;
+    }
+    if (type == QStringLiteral("mouseX1")) {
+        *target = KeyBinding::mouseX1();
+        return true;
+    }
+    if (type == QStringLiteral("mouseX2")) {
+        *target = KeyBinding::mouseX2();
+        return true;
+    }
+    if (type == QStringLiteral("wheelUp")) {
+        *target = KeyBinding::wheelUp();
+        return true;
+    }
+    if (type == QStringLiteral("wheelDown")) {
+        *target = KeyBinding::wheelDown();
+        return true;
+    }
+    if (type != QStringLiteral("keyboard")) {
+        return false;
+    }
+
+    const std::optional<int> scanCode =
+        jsonInteger(bindingObject.value(QStringLiteral("scanCode")), 0, 0xFFFF);
+    const std::optional<int> virtualKey = jsonInteger(
+        bindingObject.value(QStringLiteral("virtualKey")), 0, 0xFFFF);
+    const QJsonValue extendedValue =
+        bindingObject.value(QStringLiteral("extended"));
+    if (!scanCode.has_value() || !virtualKey.has_value()
+        || !extendedValue.isBool()) {
+        return false;
+    }
+
+    *target = KeyBinding::fromRawKeyboard(
+        static_cast<quint16>(*scanCode), extendedValue.toBool(),
+        static_cast<quint16>(*virtualKey));
+    return true;
 }
 
 }  // namespace
@@ -113,63 +193,62 @@ QJsonObject UserConfig::toJson() const
     return object;
 }
 
-UserConfig UserConfig::fromJson(const QJsonObject& object)
+std::optional<UserConfig> UserConfig::fromJson(const QJsonObject& object)
 {
     UserConfig config = defaults();
 
-    const auto readBinding = [&object](const QString& key,
-                                       KeyBinding& target) {
-        if (object.contains(key)) {
-            target = KeyBinding::fromJsonValue(object.value(key));
-        }
-    };
-
-    readBinding(QStringLiteral("toggleKey1"), config.ToggleKey1);
-    readBinding(QStringLiteral("toggleKey2"), config.ToggleKey2);
-    readBinding(QStringLiteral("resetKey"), config.ResetKey);
-
-    readBinding(QStringLiteral("weapon1Key1"), config.Weapon1Key1);
-    readBinding(QStringLiteral("weapon1Key2"), config.Weapon1Key2);
-    readBinding(QStringLiteral("weapon2Key1"), config.Weapon2Key1);
-    readBinding(QStringLiteral("weapon2Key2"), config.Weapon2Key2);
-    readBinding(QStringLiteral("knifeKey1"), config.KnifeKey1);
-    readBinding(QStringLiteral("knifeKey2"), config.KnifeKey2);
-    readBinding(QStringLiteral("pistolKey1"), config.PistolKey1);
-    readBinding(QStringLiteral("pistolKey2"), config.PistolKey2);
-
-    config.Weapon1Capacity =
-        boundedInteger(object, QStringLiteral("weapon1Capacity"),
-                       config.Weapon1Capacity, 0, 9);
-    config.Weapon2Capacity =
-        boundedInteger(object, QStringLiteral("weapon2Capacity"),
-                       config.Weapon2Capacity, 0, 9);
-    config.PistolCapacity =
-        boundedInteger(object, QStringLiteral("pistolCapacity"),
-                       config.PistolCapacity, 0, 9);
-
-    config.DotSize =
-        boundedInteger(object, QStringLiteral("dotSize"), config.DotSize, 0,
-                       std::numeric_limits<int>::max());
-    config.ScopeDelayMs =
-        boundedInteger(object, QStringLiteral("scopeDelayMs"),
-                       config.ScopeDelayMs, 0, std::numeric_limits<int>::max());
-
-    readBinding(QStringLiteral("capacityIncKey"), config.CapacityIncKey);
-    readBinding(QStringLiteral("capacityDecKey"), config.CapacityDecKey);
-
-    const QJsonValue enabled =
-        object.value(QStringLiteral("statusOverlayEnabled"));
-    if (enabled.isBool()) {
-        config.StatusOverlayEnabled = enabled.toBool();
+    if (!readBinding(object, QStringLiteral("toggleKey1"), &config.ToggleKey1)
+        || !readBinding(object, QStringLiteral("toggleKey2"),
+                        &config.ToggleKey2)
+        || !readBinding(object, QStringLiteral("resetKey"), &config.ResetKey)
+        || !readBinding(object, QStringLiteral("weapon1Key1"),
+                        &config.Weapon1Key1)
+        || !readBinding(object, QStringLiteral("weapon1Key2"),
+                        &config.Weapon1Key2)
+        || !readBinding(object, QStringLiteral("weapon2Key1"),
+                        &config.Weapon2Key1)
+        || !readBinding(object, QStringLiteral("weapon2Key2"),
+                        &config.Weapon2Key2)
+        || !readBinding(object, QStringLiteral("knifeKey1"),
+                        &config.KnifeKey1)
+        || !readBinding(object, QStringLiteral("knifeKey2"),
+                        &config.KnifeKey2)
+        || !readBinding(object, QStringLiteral("pistolKey1"),
+                        &config.PistolKey1)
+        || !readBinding(object, QStringLiteral("pistolKey2"),
+                        &config.PistolKey2)
+        || !readBinding(object, QStringLiteral("capacityIncKey"),
+                        &config.CapacityIncKey)
+        || !readBinding(object, QStringLiteral("capacityDecKey"),
+                        &config.CapacityDecKey)) {
+        return std::nullopt;
     }
 
-    config.StatusOverlayX = integerValue(
-        object, QStringLiteral("statusOverlayX"), config.StatusOverlayX);
-    config.StatusOverlayY = integerValue(
-        object, QStringLiteral("statusOverlayY"), config.StatusOverlayY);
-    config.StatusOverlayScale =
-        statusScaleValue(object, QStringLiteral("statusOverlayScale"),
-                         config.StatusOverlayScale);
+    if (!readInteger(object, QStringLiteral("weapon1Capacity"), 0, 9,
+                     &config.Weapon1Capacity)
+        || !readInteger(object, QStringLiteral("weapon2Capacity"), 0, 9,
+                        &config.Weapon2Capacity)
+        || !readInteger(object, QStringLiteral("pistolCapacity"), 0, 9,
+                        &config.PistolCapacity)
+        || !readInteger(object, QStringLiteral("dotSize"), 0,
+                        std::numeric_limits<int>::max(), &config.DotSize)
+        || !readInteger(object, QStringLiteral("scopeDelayMs"), 0,
+                        std::numeric_limits<int>::max(),
+                        &config.ScopeDelayMs)
+        || !readBool(object, QStringLiteral("statusOverlayEnabled"),
+                     &config.StatusOverlayEnabled)
+        || !readInteger(object, QStringLiteral("statusOverlayX"),
+                        std::numeric_limits<int>::min(),
+                        std::numeric_limits<int>::max(),
+                        &config.StatusOverlayX)
+        || !readInteger(object, QStringLiteral("statusOverlayY"),
+                        std::numeric_limits<int>::min(),
+                        std::numeric_limits<int>::max(),
+                        &config.StatusOverlayY)
+        || !readScale(object, QStringLiteral("statusOverlayScale"),
+                      &config.StatusOverlayScale)) {
+        return std::nullopt;
+    }
 
     return config;
 }

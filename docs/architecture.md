@@ -29,8 +29,8 @@ UI / 控制层
 | `MainOverlayWindow` | 只覆盖内容区域。白点由 `paintEvent` 绘制；图片按原始尺寸绘制；透明、置顶、无边框、Tool、点击穿透、不抢焦点、居中。 |
 | `RawInputManager` | 创建原生消息窗口，注册键盘/鼠标 `RIDEV_INPUTSINK`，解析 `WM_INPUT`，忽略键盘自动重复，输出 `KeyBinding` 与右键状态。 |
 | `StatusOverlayWindow` | 独立的透明置顶状态窗口。自绘当前武器数字、右上上标和右下下标；整个窗口可左键拖动；尺寸只随缩放比例和内容变化；保存/恢复左上角坐标。 |
-| `ConfigManager` | 启动读取一次 `user-config.json`；后台专用线程串行保存最新快照；临时文件 + Win32 原子替换；所有异常在内部捕获并写日志；提供等待接口。 |
-| `UserConfig` | 题目给定的全部字段、默认值、JSON 序列化/反序列化；不包含图片路径。 |
+| `ConfigManager` | 启动读取一次 `user-config.json`；当前 schema 不兼容时整体使用默认值；后台专用线程串行保存最新快照；临时文件 + Win32 原子替换；所有异常在内部捕获并写日志；提供等待接口。 |
+| `UserConfig` | 题目给定的全部字段、默认值、当前 schema 的严格 JSON 序列化/反序列化；不包含图片路径。 |
 | `RuntimeState` | `CurrentWeapon`、三个弹药状态、三个运行时容量副本。 |
 | `KeyBinding` | 键盘扫描码 + 扩展标志 + 规范化 VK；鼠标中键/侧键/滚轮；显示名；JSON；相等匹配。 |
 | `TrayController` | 托盘图标和固定顺序菜单；双击打开设置；“状态显示”可勾选项。 |
@@ -236,6 +236,15 @@ singleShot 到期后会使用最新数据判断。
 `ScopeDelayMs` 只用于这里，不添加其他开镜逻辑。
 
 ## 6. 保存与退出
+
+### 读取
+
+- 启动只调用一次 `loadOnce()`；读取 `%APPDATA%\BigA\user-config.json`。
+- 读取器只接受当前 schema：所有字段必须存在，布尔/整数/绑定的类型与取值范围必须
+  有效；额外字段忽略。
+- 文件不存在、JSON 解析失败、字段缺失、类型错误或范围错误时，整体读取失败，
+  `ConfigManager` 保持 `UserConfig::defaults()` 并写一条警告日志。
+- 不保留旧版本迁移、逐字段默认或部分成功读取逻辑；旧格式文件不会与默认值混合。
 
 ### 异步保存
 

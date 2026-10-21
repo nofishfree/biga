@@ -191,14 +191,6 @@ KeyBinding mouseBinding(KeyBindingType type)
     return binding;
 }
 
-int jsonInteger(const QJsonValue& value, int fallback)
-{
-    if (!value.isDouble()) {
-        return fallback;
-    }
-    return value.toInt(fallback);
-}
-
 }  // namespace
 
 quint16 KeyBinding::canonicalVirtualKey(quint16 scanCode, bool extended,
@@ -350,45 +342,6 @@ QJsonValue KeyBinding::toJsonValue() const
     QJsonObject object;
     object.insert(QStringLiteral("type"), typeName);
     return object;
-}
-
-KeyBinding KeyBinding::fromJsonValue(const QJsonValue& value)
-{
-    if (!value.isObject()) {
-        return {};
-    }
-
-    const QJsonObject object = value.toObject();
-    const QString type = object.value(QStringLiteral("type")).toString();
-
-    if (type == QStringLiteral("mouseMiddle")) {
-        return mouseMiddle();
-    }
-    if (type == QStringLiteral("mouseX1")) {
-        return mouseX1();
-    }
-    if (type == QStringLiteral("mouseX2")) {
-        return mouseX2();
-    }
-    if (type == QStringLiteral("wheelUp")) {
-        return wheelUp();
-    }
-    if (type == QStringLiteral("wheelDown")) {
-        return wheelDown();
-    }
-    if (type != QStringLiteral("keyboard")) {
-        return {};
-    }
-
-    const int scan = jsonInteger(object.value(QStringLiteral("scanCode")), -1);
-    const int vkey = jsonInteger(object.value(QStringLiteral("virtualKey")), -1);
-    if (scan < 0 || scan > 0xFFFF || vkey < 0 || vkey > 0xFFFF) {
-        return {};
-    }
-
-    const bool extended = object.value(QStringLiteral("extended")).toBool(false);
-    return fromRawKeyboard(static_cast<quint16>(scan), extended,
-                           static_cast<quint16>(vkey));
 }
 
 bool KeyBinding::operator==(const KeyBinding& other) const

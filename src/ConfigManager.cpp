@@ -217,7 +217,16 @@ void ConfigManager::loadOnce()
         return;
     }
 
-    m_config = UserConfig::fromJson(document.object());
+    const std::optional<UserConfig> config =
+        UserConfig::fromJson(document.object());
+    if (!config.has_value()) {
+        Log::warning(QStringLiteral(
+            "用户配置字段缺失或格式不兼容，使用默认配置: %1")
+                         .arg(path));
+        return;
+    }
+
+    m_config = *config;
     Log::info(QStringLiteral("已读取用户配置: %1").arg(path));
 }
 

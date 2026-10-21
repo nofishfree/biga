@@ -30,7 +30,6 @@ struct KeyBinding {
     QString displayName() const;
 
     QJsonValue toJsonValue() const;
-    static KeyBinding fromJsonValue(const QJsonValue& value);
 
     static KeyBinding fromRawKeyboard(quint16 scanCode, bool extended,
                                       quint16 virtualKey);
