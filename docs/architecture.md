@@ -16,7 +16,7 @@ Win32 输入 / 窗口层
 
 UI / 控制层
   App                    生命周期、热键业务、右键开镜隐藏状态机、退出顺序
-  TrayController         托盘菜单与双击
+  TrayController         托盘菜单、单击切换状态、双击设置
   SettingsWindow         非模态单例设置窗口，关闭时提交
   widgets/*              键入框、容量框、参数框、无边框标题栏
 ```
@@ -33,7 +33,7 @@ UI / 控制层
 | `UserConfig` | 题目给定的全部字段、默认值、当前 schema 的严格 JSON 序列化/反序列化；不包含图片路径。 |
 | `RuntimeState` | `CurrentWeapon`、三个弹药状态、三个运行时容量副本。 |
 | `KeyBinding` | 键盘扫描码 + 扩展标志 + 规范化 VK；鼠标中键/侧键/滚轮；显示名；JSON；相等匹配。 |
-| `TrayController` | 托盘图标和固定顺序菜单；双击打开设置；“状态显示”可勾选项。 |
+| `TrayController` | 托盘图标和固定顺序菜单；左键单击切换状态显示（延迟到双击间隔后），双击打开设置；“状态显示”可勾选项。 |
 | `SettingsWindow` | 760px 宽的无边框单例设置窗口；键入框、容量框、参数框、状态显示缩放滑块；关闭时提交并发出 `configCommitted`。 |
 | `KeyBindingEdit` | 只读按键显示框；左键进入捕获态；右键清空；捕获态高亮；空绑定显示“未绑定”。 |
 | `CapacityEdit` | 0~9 单字符输入；按合法数字立即写入并失焦；其他按键吞掉并继续等待；Tab/Enter 失焦；不做失焦修正。 |
@@ -106,6 +106,9 @@ WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
 
 托盘菜单顺序为“选择图片”“还原白点”“状态显示”“设置”“退出”。“状态显示”
 为可勾选项，默认 false，勾选/取消立即保存。
+
+托盘图标左键单击在系统双击间隔结束后切换状态显示窗口；若期间收到双击，
+取消单击切换并打开设置，因此双击不会误切换状态。
 
 配置增量：
 
@@ -209,31 +212,40 @@ quint16 virtualKey;
 ### 右键开镜隐藏状态机
 
 ```text
+容量优先规则（任何时刻）:
+  if (CurrentWeapon != 刀 && capacity == 0)
+      hide 主窗口
+      该规则不受 rightHeld / ScopeDelayMs 影响；
+      右键按下、保持、抬起都不会重新显示。
+
 右键按下:
   rightHeld = true
   取消已有 QTimer，按 ScopeDelayMs 重新 singleShot
+  应用容量优先规则
 
 计时器到期:
   if (!rightHeld) return
   if (CurrentWeapon == 刀) hide
-  else if (capacity == 0) 不隐藏
   else if (ammoState == capacity - 1) 不隐藏
   else hide
 
 右键保持期间，延迟已结束且按下已绑定功能的按键:
   用最新 CurrentWeapon / ammoState / capacity 立即重新判断
+  容量为 0 -> 立即 hide
   需要隐藏 -> hide；已经不需要隐藏 -> show
 
 右键抬起:
   rightHeld = false
   取消计时器
-  show overlay
+  容量为 0 -> hide
+  否则 show overlay
 ```
 
-如果功能键在 ScopeDelayMs 到期前按下，不提前执行隐藏判断；仍在计时的
-singleShot 到期后会使用最新数据判断。
+如果功能键在 ScopeDelayMs 到期前按下，普通开镜隐藏不提前执行；仍在计时的
+singleShot 到期后会使用最新数据判断。容量从 0 恢复到非 0 时立即按当前右键/
+开镜状态重新判断；容量变为 0 时立即隐藏。
 
-`ScopeDelayMs` 只用于这里，不添加其他开镜逻辑。
+`ScopeDelayMs` 只用于开镜隐藏，不改变容量为 0 的强制隐藏规则。
 
 ## 6. 保存与退出
 

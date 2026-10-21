@@ -124,6 +124,8 @@ bool App::initialize()
             &App::chooseImage);
     connect(m_tray, &TrayController::restoreDotRequested, this,
             &App::restoreDot);
+    connect(m_tray, &TrayController::toggleStatusOverlayRequested, this,
+            &App::toggleStatusOverlayFromTray);
     connect(m_tray, &TrayController::statusOverlayToggled, this,
             &App::onStatusOverlayToggled);
     connect(m_tray, &TrayController::settingsRequested, this,
@@ -159,6 +161,8 @@ bool App::initialize()
             showStatusOverlayIfEnabled();
         }
     });
+
+    updateMainOverlayVisibility();
 
     m_initialized = true;
     Log::info(QStringLiteral("应用已启动"));
@@ -219,11 +223,13 @@ void App::chooseImage()
     }
 
     m_overlay->showImage(image);
+    updateMainOverlayVisibility();
 }
 
 void App::restoreDot()
 {
     m_overlay->showDot(m_configManager->config().DotSize);
+    updateMainOverlayVisibility();
 }
 
 void App::openSettings()
@@ -317,6 +323,19 @@ void App::refreshStatusOverlayContent()
     m_statusOverlay->setRuntimeStatus(weapon, ammoState, capacity);
 }
 
+void App::toggleStatusOverlayFromTray()
+{
+    if (m_configManager == nullptr) {
+        return;
+    }
+
+    const bool enabled = !m_configManager->config().StatusOverlayEnabled;
+    onStatusOverlayToggled(enabled);
+    if (m_tray != nullptr) {
+        m_tray->setStatusOverlayChecked(enabled);
+    }
+}
+
 void App::onStatusOverlayToggled(bool enabled)
 {
     UserConfig& config = m_configManager->config();
@@ -399,6 +418,7 @@ void App::onSettingsConfigCommitted(const UserConfig& config)
         m_statusOverlay->setScale(normalized.StatusOverlayScale);
     }
     refreshStatusOverlayContent();
+    updateMainOverlayVisibility();
 
     // The settings close is the final authority over pending +1/-1 debounce
     // work. Cancel it and save the configuration that was just committed.
@@ -427,16 +447,7 @@ void App::onKeyInput(const KeyBinding& binding)
 
     if (functionKeyPressed) {
         refreshStatusOverlayContent();
-    }
-
-    // If the right button is still being held and the initial hide delay has
-    // already elapsed, any bound function key can change the current state.
-    // Re-evaluate immediately instead of waiting for another right press.
-    // Before the delay expires, the pending timer will evaluate the latest
-    // state when it fires, preserving ScopeDelayMs semantics.
-    if (m_rightButtonHeld && functionKeyPressed
-        && m_scopeDelayTimer != nullptr && !m_scopeDelayTimer->isActive()) {
-        updateScopeVisibility();
+        updateMainOverlayVisibility();
     }
 
     if (m_settings != nullptr && m_settings->isVisible()) {
@@ -457,13 +468,14 @@ void App::onRightButtonPressed()
     m_scopeDelayTimer->stop();
     m_scopeDelayTimer->start(
         std::max(0, m_configManager->config().ScopeDelayMs));
+    updateMainOverlayVisibility();
 }
 
 void App::onRightButtonReleased()
 {
     m_rightButtonHeld = false;
     m_scopeDelayTimer->stop();
-    m_overlay->showCurrent();
+    updateMainOverlayVisibility();
 }
 
 void App::onScopeDelayElapsed()
@@ -471,7 +483,31 @@ void App::onScopeDelayElapsed()
     if (!m_rightButtonHeld) {
         return;
     }
-    updateScopeVisibility();
+    updateMainOverlayVisibility();
+}
+
+bool App::shouldHideMainOverlay() const
+{
+    // A zero-capacity weapon keeps the main overlay hidden at all times,
+    // independent of the right-button scope state.
+    if (m_runtime.CurrentWeapon != 2) {
+        const int capacity =
+            runtimeCapacityForWeapon(m_runtime.CurrentWeapon);
+        if (capacity <= 0) {
+            return true;
+        }
+    }
+
+    if (!m_rightButtonHeld) {
+        return false;
+    }
+
+    // The initial right-press delay has not elapsed yet.
+    if (m_scopeDelayTimer != nullptr && m_scopeDelayTimer->isActive()) {
+        return false;
+    }
+
+    return shouldHideOverlayForScope();
 }
 
 bool App::shouldHideOverlayForScope() const
@@ -482,20 +518,16 @@ bool App::shouldHideOverlayForScope() const
 
     const int capacity = runtimeCapacityForWeapon(m_runtime.CurrentWeapon);
     if (capacity <= 0) {
-        return false;
+        return true;
     }
 
     const int ammoState = ammoStateForWeapon(m_runtime.CurrentWeapon);
     return ammoState != capacity - 1;
 }
 
-void App::updateScopeVisibility()
+void App::updateMainOverlayVisibility()
 {
-    if (!m_rightButtonHeld) {
-        return;
-    }
-
-    if (shouldHideOverlayForScope()) {
+    if (shouldHideMainOverlay()) {
         m_overlay->hideForScope();
     } else if (!m_overlay->isVisible()) {
         m_overlay->showCurrent();

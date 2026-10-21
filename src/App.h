@@ -40,6 +40,7 @@ private:
     bool createStatusOverlayIfNeeded();
     void showStatusOverlayIfEnabled();
     void refreshStatusOverlayContent();
+    void toggleStatusOverlayFromTray();
     void onStatusOverlayToggled(bool enabled);
     void onStatusOverlayScalePreview(double scale);
     void onStatusOverlayDragFinished(const QPoint& topLeft);
@@ -67,8 +68,9 @@ private:
     void adjustCurrentCapacity(int delta);
     void syncRuntimeCapacitiesToConfig();
     void applyConfigToRuntimeCapacities();
+    bool shouldHideMainOverlay() const;
     bool shouldHideOverlayForScope() const;
-    void updateScopeVisibility();
+    void updateMainOverlayVisibility();
 
     static bool loadStoredImage(QImage* image);
     static bool persistImage(const QString& sourcePath, QImage* image,

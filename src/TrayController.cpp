@@ -4,9 +4,12 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDateTime>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QMenu>
 #include <QSignalBlocker>
+#include <QStyleHints>
 #include <QSystemTrayIcon>
 #include <QTimer>
 
@@ -55,12 +58,37 @@ TrayController::TrayController(QObject* parent)
     }
 
     m_trayIcon = new QSystemTrayIcon(icon, this);
-    m_trayIcon->setToolTip(QStringLiteral("BigA"));
+    m_trayIcon->setToolTip(
+        QStringLiteral("BigA\n单击显示/隐藏状态，双击打开设置"));
     m_trayIcon->setContextMenu(m_menu);
+
+    // Delay a single click until the system double-click interval has passed.
+    // A double click cancels it, so opening settings never also toggles status.
+    m_singleClickTimer = new QTimer(this);
+    m_singleClickTimer->setSingleShot(true);
+    const int doubleClickInterval =
+        QGuiApplication::styleHints() != nullptr
+            ? QGuiApplication::styleHints()->mouseDoubleClickInterval()
+            : 500;
+    m_singleClickTimer->setInterval(doubleClickInterval + 75);
+    connect(m_singleClickTimer, &QTimer::timeout, this,
+            &TrayController::toggleStatusOverlayRequested);
 
     connect(m_trayIcon, &QSystemTrayIcon::activated, this,
             [this](QSystemTrayIcon::ActivationReason reason) {
-                if (reason == QSystemTrayIcon::DoubleClick) {
+                if (reason == QSystemTrayIcon::Trigger) {
+                    // Some Windows/Qt combinations deliver a Trigger after the
+                    // DoubleClick event. Ignore those trailing clicks.
+                    if (QDateTime::currentMSecsSinceEpoch()
+                        < m_ignoreSingleClicksUntil) {
+                        return;
+                    }
+                    m_singleClickTimer->start();
+                } else if (reason == QSystemTrayIcon::DoubleClick) {
+                    m_singleClickTimer->stop();
+                    m_ignoreSingleClicksUntil =
+                        QDateTime::currentMSecsSinceEpoch()
+                        + m_singleClickTimer->interval();
                     emit settingsRequested();
                 }
             });
