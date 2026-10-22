@@ -11,8 +11,8 @@
 ## 静态单文件构建
 
 - 构建目录：`build/build-static`
-- 产物：`dist/BigA.exe`，17,288,192 字节，SHA-256
-  `16C4D8A20F2FDC25104FA77E54E4220A7CF78C9AFAD5214966BE0EFF0C0EE80D`
+- 产物：`dist/BigA.exe`，17,288,704 字节，SHA-256
+  `8ECE42B8735DB0B2F11500D05E62B4EE01964BE9C83D0033CC69B0F1BF13DBFD`
 - CMake 自动采用 `/MT`，并嵌入 qwindows 平台插件、现代 Windows 样式以及
   GIF/ICO/JPEG 图片插件。
 - `dumpbin /DEPENDENTS` 仅列出 Windows 系统 DLL，没有 `Qt6*.dll`、
@@ -26,7 +26,8 @@
 - Debug / Release 均无警告编译、链接通过。
 - 启动：3×3 白点位于主屏中心；不抢 Notepad 前台焦点。
 - 单实例：启动第二个 `BigA.exe` 后进程数保持 1，第二个进程直接退出。
-- 设置窗口：760×673px；无边框、仅右上角“×”；主屏居中；三个分组完整显示；
+- 设置窗口：760×673px；无边框、仅右上角“×”；主屏居中；`WS_EX_TOPMOST` 置顶
+  且保持可聚焦、可输入、可拖动；三个分组完整显示；
   “白点大小”位于“切换与重置”，“容量±1”位于“武器热键”，“参数”包含
   开镜延迟和状态显示缩放滑块。
 - 设置关闭：配置写入 `user-config.json`，无 `.tmp` 残留；白点大小立即从 3 变为 7，窗口变为 7×7。

@@ -14,6 +14,7 @@ class QCloseEvent;
 class QGridLayout;
 class QKeyEvent;
 class QLabel;
+class QShowEvent;
 class QSlider;
 
 class SettingsWindow final : public QWidget {
@@ -36,6 +37,7 @@ public slots:
 protected:
     void closeEvent(QCloseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 
 private:
     struct BindingSlot {

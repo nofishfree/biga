@@ -17,12 +17,15 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScreen>
+#include <QShowEvent>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QStyle>
 #include <QVBoxLayout>
 
 #include <cmath>
+
+#include <windows.h>
 
 namespace {
 
@@ -42,7 +45,8 @@ SettingsWindow::SettingsWindow(QWidget* parent)
 {
     setObjectName(QStringLiteral("settingsWindow"));
     setWindowTitle(QStringLiteral("设置"));
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+    setWindowFlags(Qt::Window | Qt::FramelessWindowHint
+                   | Qt::WindowStaysOnTopHint);
     setWindowModality(Qt::NonModal);
     setAttribute(Qt::WA_StyledBackground, true);
 
@@ -195,6 +199,17 @@ void SettingsWindow::keyPressEvent(QKeyEvent* event)
         return;
     }
     QWidget::keyPressEvent(event);
+}
+
+void SettingsWindow::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+
+    const HWND hwnd = reinterpret_cast<HWND>(winId());
+    if (hwnd != nullptr) {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 }
 
 void SettingsWindow::buildUi()

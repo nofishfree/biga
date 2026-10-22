@@ -34,7 +34,7 @@ UI / 控制层
 | `RuntimeState` | `CurrentWeapon`、三个弹药状态、三个运行时容量副本。 |
 | `KeyBinding` | 键盘扫描码 + 扩展标志 + 规范化 VK；鼠标中键/侧键/滚轮；显示名；JSON；相等匹配。 |
 | `TrayController` | 托盘图标和固定顺序菜单；左键单击切换状态显示（延迟到双击间隔后），双击打开设置；“状态显示”可勾选项。 |
-| `SettingsWindow` | 760px 宽的无边框单例设置窗口；键入框、容量框、参数框、状态显示缩放滑块；关闭时提交并发出 `configCommitted`。 |
+| `SettingsWindow` | 760px 宽的无边框单例设置窗口；置顶（`WS_EX_TOPMOST`），但保持可聚焦、可输入、可拖动；键入框、容量框、参数框、状态显示缩放滑块；关闭时提交并发出 `configCommitted`。 |
 | `KeyBindingEdit` | 只读按键显示框；左键进入捕获态；右键清空；捕获态高亮；空绑定显示“未绑定”。 |
 | `CapacityEdit` | 0~9 单字符输入；按合法数字立即写入并失焦；其他按键吞掉并继续等待；Tab/Enter 失焦；不做失焦修正。 |
 | `ParameterEdit` | 只允许十进制数字；聚焦全选；Tab/Enter/其他控件失焦；空/非法恢复原值。 |
