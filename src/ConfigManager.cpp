@@ -193,16 +193,25 @@ void ConfigManager::loadOnce()
     }
     m_loaded = true;
 
+    // Every fallback immediately rewrites the file with the defaults of the
+    // current schema, so a file written by an older schema or a damaged file
+    // is replaced by a fresh one instead of being read repeatedly.
+    auto useDefaults = [this](const QString& reason) {
+        Log::warning(reason);
+        SaveUserConfigAsync();
+    };
+
     const QString path = AppPaths::configFilePath();
     QFile file(path);
     if (!file.exists()) {
-        Log::info(QStringLiteral("用户配置不存在，使用默认配置: %1").arg(path));
+        useDefaults(QStringLiteral("用户配置不存在，使用并写入默认配置: %1")
+                        .arg(path));
         return;
     }
 
     if (!file.open(QIODevice::ReadOnly)) {
-        Log::warning(QStringLiteral("无法读取用户配置，使用默认配置: %1 (%2)")
-                         .arg(path, file.errorString()));
+        useDefaults(QStringLiteral("无法读取用户配置，使用并写入默认配置: %1 (%2)")
+                        .arg(path, file.errorString()));
         return;
     }
 
@@ -212,17 +221,17 @@ void ConfigManager::loadOnce()
     file.close();
 
     if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        Log::warning(QStringLiteral("用户配置解析失败，使用默认配置: %1 (%2)")
-                         .arg(path, parseError.errorString()));
+        useDefaults(QStringLiteral("用户配置解析失败，使用并写入默认配置: %1 (%2)")
+                        .arg(path, parseError.errorString()));
         return;
     }
 
     const std::optional<UserConfig> config =
         UserConfig::fromJson(document.object());
     if (!config.has_value()) {
-        Log::warning(QStringLiteral(
-            "用户配置字段缺失或格式不兼容，使用默认配置: %1")
-                         .arg(path));
+        useDefaults(QStringLiteral(
+            "用户配置字段缺失或格式不兼容，使用并写入默认配置: %1")
+                        .arg(path));
         return;
     }
 

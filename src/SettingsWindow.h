@@ -71,8 +71,7 @@ private:
 
     FramelessTitleBar* m_titleBar = nullptr;
 
-    KeyBindingEdit* m_toggleKey1 = nullptr;
-    KeyBindingEdit* m_toggleKey2 = nullptr;
+    KeyBindingEdit* m_toggleKey = nullptr;
     KeyBindingEdit* m_resetKey = nullptr;
 
     KeyBindingEdit* m_weapon1Key1 = nullptr;
@@ -86,6 +85,8 @@ private:
 
     KeyBindingEdit* m_capacityIncKey = nullptr;
     KeyBindingEdit* m_capacityDecKey = nullptr;
+    KeyBindingEdit* m_ammoStateIncKey = nullptr;
+    KeyBindingEdit* m_ammoStateDecKey = nullptr;
 
     CapacityEdit* m_weapon1Capacity = nullptr;
     CapacityEdit* m_weapon2Capacity = nullptr;

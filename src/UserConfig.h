@@ -8,8 +8,7 @@
 #include <optional>
 
 struct UserConfig {
-    KeyBinding ToggleKey1;
-    KeyBinding ToggleKey2;
+    KeyBinding ToggleKey;
     KeyBinding ResetKey;
 
     KeyBinding Weapon1Key1;
@@ -30,6 +29,9 @@ struct UserConfig {
 
     KeyBinding CapacityIncKey;
     KeyBinding CapacityDecKey;
+
+    KeyBinding AmmoStateIncKey;
+    KeyBinding AmmoStateDecKey;
 
     bool StatusOverlayEnabled = false;
     // Sentinel values mean "no saved position yet".

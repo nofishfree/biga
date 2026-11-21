@@ -29,13 +29,13 @@
 
 namespace {
 
-constexpr int kFieldLabelWidth = 128;
-constexpr int kBindingWidth = 156;
-constexpr int kCapacityLabelWidth = 76;
-constexpr int kNumberWidth = 108;
-constexpr int kControlHeight = 32;
-constexpr int kWindowWidth = 760;
-constexpr int kScaleLabelWidth = 44;
+constexpr int kFieldLabelWidth = 110;
+constexpr int kBindingWidth = 116;
+constexpr int kCapacityLabelWidth = 40;
+constexpr int kNumberWidth = 76;
+constexpr int kControlHeight = 26;
+constexpr int kWindowWidth = 540;
+constexpr int kScaleLabelWidth = 34;
 
 }  // namespace
 
@@ -226,26 +226,9 @@ void SettingsWindow::buildUi()
     auto* content = new QWidget(this);
     content->setObjectName(QStringLiteral("settingsContent"));
     auto* contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(20, 16, 20, 20);
-    contentLayout->setSpacing(16);
+    contentLayout->setContentsMargins(12, 10, 12, 12);
+    contentLayout->setSpacing(12);
     rootLayout->addWidget(content);
-
-    QGridLayout* group1Grid = nullptr;
-    QWidget* group1 = createSection(QStringLiteral("切换与重置"), &group1Grid);
-    contentLayout->addWidget(group1);
-
-    group1Grid->addWidget(makeFieldLabel(QStringLiteral("切换")), 0, 0);
-    m_toggleKey1 = makeBindingEditor(group1Grid, 0, 1, &UserConfig::ToggleKey1,
-                                     QStringLiteral("切换键 1"));
-    m_toggleKey2 = makeBindingEditor(group1Grid, 0, 2, &UserConfig::ToggleKey2,
-                                     QStringLiteral("切换键 2"));
-    group1Grid->addWidget(makeFieldLabel(QStringLiteral("重置/恢复")), 1, 0);
-    m_resetKey = makeBindingEditor(group1Grid, 1, 1, &UserConfig::ResetKey,
-                                   QStringLiteral("重置键"));
-    group1Grid->addWidget(makeFieldLabel(QStringLiteral("白点大小")), 2, 0);
-    m_dotSize = new ParameterEdit(this);
-    m_dotSize->setFixedSize(kNumberWidth, kControlHeight);
-    group1Grid->addWidget(m_dotSize, 2, 1);
 
     QGridLayout* group2Grid = nullptr;
     QWidget* group2 = createSection(QStringLiteral("武器热键"), &group2Grid);
@@ -258,7 +241,7 @@ void SettingsWindow::buildUi()
     m_weapon1Key2 = makeBindingEditor(
         group2Grid, 0, 2, &UserConfig::Weapon1Key2,
         QStringLiteral("一号武器键 2"));
-    group2Grid->addWidget(makeCapacityLabel(QStringLiteral("一号容量")), 0, 3);
+    group2Grid->addWidget(makeCapacityLabel(QStringLiteral("容量")), 0, 3);
     m_weapon1Capacity = new CapacityEdit(this);
     m_weapon1Capacity->setFixedSize(kNumberWidth, kControlHeight);
     group2Grid->addWidget(m_weapon1Capacity, 0, 4);
@@ -270,7 +253,7 @@ void SettingsWindow::buildUi()
     m_weapon2Key2 = makeBindingEditor(
         group2Grid, 1, 2, &UserConfig::Weapon2Key2,
         QStringLiteral("二号武器键 2"));
-    group2Grid->addWidget(makeCapacityLabel(QStringLiteral("二号容量")), 1, 3);
+    group2Grid->addWidget(makeCapacityLabel(QStringLiteral("容量")), 1, 3);
     m_weapon2Capacity = new CapacityEdit(this);
     m_weapon2Capacity->setFixedSize(kNumberWidth, kControlHeight);
     group2Grid->addWidget(m_weapon2Capacity, 1, 4);
@@ -288,31 +271,59 @@ void SettingsWindow::buildUi()
     m_pistolKey2 = makeBindingEditor(
         group2Grid, 3, 2, &UserConfig::PistolKey2,
         QStringLiteral("手枪键 2"));
-    group2Grid->addWidget(makeCapacityLabel(QStringLiteral("手枪容量")), 3, 3);
+    group2Grid->addWidget(makeCapacityLabel(QStringLiteral("容量")), 3, 3);
     m_pistolCapacity = new CapacityEdit(this);
     m_pistolCapacity->setFixedSize(kNumberWidth, kControlHeight);
     group2Grid->addWidget(m_pistolCapacity, 3, 4);
-
-    group2Grid->addWidget(makeFieldLabel(QStringLiteral("容量+1")), 4, 0);
-    m_capacityIncKey = makeBindingEditor(
-        group2Grid, 4, 1, &UserConfig::CapacityIncKey,
-        QStringLiteral("容量+1 键"));
-    group2Grid->addWidget(makeFieldLabel(QStringLiteral("容量-1")), 5, 0);
-    m_capacityDecKey = makeBindingEditor(
-        group2Grid, 5, 1, &UserConfig::CapacityDecKey,
-        QStringLiteral("容量-1 键"));
 
     QGridLayout* group3Grid = nullptr;
     QWidget* group3 = createSection(QStringLiteral("参数"), &group3Grid);
     contentLayout->addWidget(group3);
 
-    group3Grid->addWidget(makeFieldLabel(QStringLiteral("开镜延迟(ms)")), 0, 0);
+    // 参数栏每行并排放两组"标签 + 控件"，因此把第 2 列改为标签列、
+    // 第 3 列改为控件列。
+    group3Grid->setColumnMinimumWidth(2, kFieldLabelWidth);
+    group3Grid->setColumnMinimumWidth(3, kBindingWidth);
+    group3Grid->setColumnMinimumWidth(4, 0);
+    group3Grid->setColumnStretch(4, 0);
+
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("切换")), 0, 0);
+    m_toggleKey = makeBindingEditor(group3Grid, 0, 1, &UserConfig::ToggleKey,
+                                    QStringLiteral("切换键"));
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("重置")), 0, 2);
+    m_resetKey = makeBindingEditor(group3Grid, 0, 3, &UserConfig::ResetKey,
+                                   QStringLiteral("重置键"));
+
+    // 左列容量、右列状态，“容量-1”与“状态+1”按列成对排列。
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("容量+1")), 1, 0);
+    m_capacityIncKey = makeBindingEditor(
+        group3Grid, 1, 1, &UserConfig::CapacityIncKey,
+        QStringLiteral("容量+1 键"));
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("状态+1")), 1, 2);
+    m_ammoStateIncKey = makeBindingEditor(
+        group3Grid, 1, 3, &UserConfig::AmmoStateIncKey,
+        QStringLiteral("状态+1 键"));
+
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("容量-1")), 2, 0);
+    m_capacityDecKey = makeBindingEditor(
+        group3Grid, 2, 1, &UserConfig::CapacityDecKey,
+        QStringLiteral("容量-1 键"));
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("状态-1")), 2, 2);
+    m_ammoStateDecKey = makeBindingEditor(
+        group3Grid, 2, 3, &UserConfig::AmmoStateDecKey,
+        QStringLiteral("状态-1 键"));
+
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("白点大小")), 3, 0);
+    m_dotSize = new ParameterEdit(this);
+    m_dotSize->setFixedSize(kNumberWidth, kControlHeight);
+    group3Grid->addWidget(m_dotSize, 3, 1);
+    group3Grid->addWidget(makeFieldLabel(QStringLiteral("开镜延迟(ms)")), 3, 2);
     m_scopeDelay = new ParameterEdit(this);
     m_scopeDelay->setFixedSize(kNumberWidth, kControlHeight);
-    group3Grid->addWidget(m_scopeDelay, 0, 1);
+    group3Grid->addWidget(m_scopeDelay, 3, 3);
 
     group3Grid->addWidget(
-        makeFieldLabel(QStringLiteral("状态显示缩放比例")), 1, 0);
+        makeFieldLabel(QStringLiteral("状态显示缩放比例")), 4, 0);
     auto* scaleControl = new QWidget(this);
     auto* scaleLayout = new QHBoxLayout(scaleControl);
     scaleLayout->setContentsMargins(0, 0, 0, 0);
@@ -330,7 +341,7 @@ void SettingsWindow::buildUi()
     m_statusScaleValueLabel->setFixedWidth(kScaleLabelWidth);
     scaleLayout->addWidget(m_statusScaleSlider, 1);
     scaleLayout->addWidget(m_statusScaleValueLabel, 0);
-    group3Grid->addWidget(scaleControl, 1, 1, 1, 4);
+    group3Grid->addWidget(scaleControl, 4, 1, 1, 3);
     connect(m_statusScaleSlider, &QSlider::valueChanged, this,
             &SettingsWindow::onStatusScaleSliderChanged);
 
@@ -345,8 +356,8 @@ QWidget* SettingsWindow::createSection(const QString& title,
     card->setFrameShape(QFrame::NoFrame);
 
     auto* cardLayout = new QVBoxLayout(card);
-    cardLayout->setContentsMargins(14, 12, 14, 14);
-    cardLayout->setSpacing(10);
+    cardLayout->setContentsMargins(10, 8, 10, 10);
+    cardLayout->setSpacing(6);
 
     auto* titleLabel = new QLabel(title, card);
     titleLabel->setObjectName(QStringLiteral("sectionTitle"));
@@ -354,8 +365,8 @@ QWidget* SettingsWindow::createSection(const QString& title,
 
     auto* grid = new QGridLayout();
     grid->setContentsMargins(0, 0, 0, 0);
-    grid->setHorizontalSpacing(10);
-    grid->setVerticalSpacing(8);
+    grid->setHorizontalSpacing(8);
+    grid->setVerticalSpacing(6);
     grid->setColumnMinimumWidth(0, kFieldLabelWidth);
     grid->setColumnMinimumWidth(1, kBindingWidth);
     grid->setColumnMinimumWidth(2, kBindingWidth);

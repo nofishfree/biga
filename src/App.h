@@ -56,6 +56,7 @@ private:
     bool handleToggleKey(const KeyBinding& binding);
     bool handleResetKey(const KeyBinding& binding);
     bool handleCapacityKey(const KeyBinding& binding);
+    bool handleAmmoStateKey(const KeyBinding& binding);
 
     void toggleCurrentWeaponAmmo();
     void resetRuntime();
@@ -66,6 +67,7 @@ private:
     const int& ammoStateForWeapon(int weapon) const;
 
     void adjustCurrentCapacity(int delta);
+    void adjustCurrentAmmoState(int delta);
     void syncRuntimeCapacitiesToConfig();
     void applyConfigToRuntimeCapacities();
     bool shouldHideMainOverlay() const;

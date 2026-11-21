@@ -1,12 +1,14 @@
 #include "StatusOverlayWindow.h"
 
+#include <QCursor>
 #include <QGuiApplication>
-#include <QMouseEvent>
+#include <QHideEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
 #include <QScreen>
 #include <QShowEvent>
+#include <QTimer>
 
 #include <algorithm>
 #include <cmath>
@@ -23,6 +25,10 @@ constexpr qreal kContentPadding = 2.0;
 constexpr double kSubscriptOverlap = 0.10;
 constexpr double kMinimumScale = 0.5;
 constexpr double kMaximumScale = 3.0;
+
+// 拖动方块与轮询：固定 50×50、居中于窗口，避免按字体度量实时计算。
+constexpr int kDragBoxSize = 50;
+constexpr int kDragPollIntervalMs = 10;
 
 const QColor kTextFill(255, 255, 255);
 
@@ -120,8 +126,16 @@ StatusOverlayWindow::StatusOverlayWindow(QWidget* parent)
     setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_NoSystemBackground, true);
     setAttribute(Qt::WA_ShowWithoutActivating, true);
+    setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setFocusPolicy(Qt::NoFocus);
-    setCursor(Qt::SizeAllCursor);
+
+    // 窗口对鼠标完全穿透，拖动由定时轮询左右键状态驱动：只有左右键同时按下、
+    // 且光标落在数字方块内时才移动窗口。
+    m_dragTimer = new QTimer(this);
+    m_dragTimer->setInterval(kDragPollIntervalMs);
+    m_dragTimer->setTimerType(Qt::CoarseTimer);
+    connect(m_dragTimer, &QTimer::timeout, this,
+            &StatusOverlayWindow::pollDrag);
 
     updateContentSize();
     placeAtDefaultPosition();
@@ -278,43 +292,58 @@ void StatusOverlayWindow::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
     applyNativeWindowStyles();
-}
-
-void StatusOverlayWindow::mousePressEvent(QMouseEvent* event)
-{
-    if (event->button() == Qt::LeftButton) {
-        m_dragging = true;
-        m_dragOffset = event->globalPosition().toPoint()
-                       - frameGeometry().topLeft();
-        setCursor(Qt::ClosedHandCursor);
-        applyNativeWindowStyles();
-        event->accept();
-        return;
+    if (m_dragTimer != nullptr && !m_dragTimer->isActive()) {
+        m_dragTimer->start();
     }
-    event->accept();
 }
 
-void StatusOverlayWindow::mouseMoveEvent(QMouseEvent* event)
+void StatusOverlayWindow::hideEvent(QHideEvent* event)
 {
-    if (m_dragging && (event->buttons() & Qt::LeftButton) != 0) {
-        move(event->globalPosition().toPoint() - m_dragOffset);
-        applyNativeWindowStyles();
-        event->accept();
-        return;
+    if (m_dragTimer != nullptr) {
+        m_dragTimer->stop();
     }
-    QWidget::mouseMoveEvent(event);
-}
-
-void StatusOverlayWindow::mouseReleaseEvent(QMouseEvent* event)
-{
-    if (event->button() == Qt::LeftButton && m_dragging) {
+    if (m_dragging) {
         m_dragging = false;
-        setCursor(Qt::SizeAllCursor);
         emit dragFinished(pos());
-        event->accept();
+    }
+    QWidget::hideEvent(event);
+}
+
+QRect StatusOverlayWindow::dragRect() const
+{
+    // 固定 50×50 的方块，居中放在窗口里。窗口本身透明且鼠标穿透，方块只是
+    // “左右键同时按下时可以从哪里开始拖”的判定区，不需要跟随字体大小变化。
+    QRect box(0, 0, kDragBoxSize, kDragBoxSize);
+    box.moveCenter(rect().center());
+    return box;
+}
+
+void StatusOverlayWindow::pollDrag()
+{
+    const bool bothDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0
+                          && (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+
+    if (!m_dragging) {
+        if (!bothDown || !isVisible()) {
+            return;
+        }
+        const QPoint cursor = QCursor::pos();
+        if (!dragRect().contains(mapFromGlobal(cursor))) {
+            return;
+        }
+        m_dragging = true;
+        m_dragOffset = cursor - frameGeometry().topLeft();
         return;
     }
-    QWidget::mouseReleaseEvent(event);
+
+    if (!bothDown) {
+        // 任一键抬起即结束拖动；抬起路径上不做任何其他处理。
+        m_dragging = false;
+        emit dragFinished(pos());
+        return;
+    }
+
+    move(QCursor::pos() - m_dragOffset);
 }
 
 bool StatusOverlayWindow::nativeEvent(const QByteArray& eventType,
@@ -354,8 +383,11 @@ void StatusOverlayWindow::applyNativeWindowStyles()
     }
 
     LONG_PTR extendedStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-    extendedStyle |= WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
-    extendedStyle &= ~(WS_EX_TRANSPARENT | WS_EX_APPWINDOW);
+    // WS_EX_TRANSPARENT 让整个窗口对鼠标穿透：单击、右键都直接落到下面的窗口，
+    // 拖动改由 pollDrag() 轮询左右键完成。
+    extendedStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE
+                     | WS_EX_TOOLWINDOW;
+    extendedStyle &= ~WS_EX_APPWINDOW;
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, extendedStyle);
 
     SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,

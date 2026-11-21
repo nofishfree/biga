@@ -15,7 +15,7 @@ QPushButton#closeButton {
     border: none;
     background-color: transparent;
     color: #aab8c9;
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 400;
     padding: 0;
 }
@@ -57,9 +57,9 @@ QLabel#capacityLabel {
 QLineEdit {
     background-color: #0f151d;
     border: 1px solid #344255;
-    border-radius: 6px;
+    border-radius: 5px;
     color: #eaf2ff;
-    padding: 3px 9px;
+    padding: 2px 8px;
     selection-background-color: #2563eb;
     selection-color: #ffffff;
 }
@@ -85,7 +85,7 @@ QLineEdit#bindingEdit[capturing="true"] {
     background-color: #0b2a3f;
     border: 2px solid #52b8ff;
     color: #e9f7ff;
-    padding: 2px 8px;
+    padding: 1px 7px;
 }
 
 QLineEdit#capacityEdit,
@@ -101,7 +101,7 @@ QLineEdit#parameterEdit:focus {
 }
 
 QSlider#statusScaleSlider {
-    min-height: 24px;
+    min-height: 22px;
 }
 
 QSlider#statusScaleSlider::groove:horizontal {

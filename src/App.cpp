@@ -230,6 +230,26 @@ void App::restoreDot()
 {
     m_overlay->showDot(m_configManager->config().DotSize);
     updateMainOverlayVisibility();
+
+    // “还原白点”同时是图片缓存的删除点：只切换当前显示而不删文件，下次启动
+    // 会按固定文件重新显示上一次的图片。配置里本来就不保存图片路径，缓存文件
+    // 是唯一的图片状态，因此必须在还原时清掉。
+    const QString path = AppPaths::imageFilePath();
+    if (!QFileInfo::exists(path)) {
+        return;
+    }
+
+    if (QFile::remove(path)) {
+        Log::info(QStringLiteral("还原白点：已删除图片缓存 %1").arg(path));
+        return;
+    }
+
+    Log::warning(QStringLiteral("还原白点：删除图片缓存失败 %1").arg(path));
+    QMessageBox::warning(
+        nullptr, QStringLiteral("BigA"),
+        QStringLiteral("已切回白点，但删除图片缓存失败：\n%1\n"
+                       "下次启动仍会显示这张图片。")
+            .arg(path));
 }
 
 void App::openSettings()
@@ -444,6 +464,9 @@ void App::onKeyInput(const KeyBinding& binding)
     if (!functionKeyPressed) {
         functionKeyPressed = handleCapacityKey(binding);
     }
+    if (!functionKeyPressed) {
+        functionKeyPressed = handleAmmoStateKey(binding);
+    }
 
     if (functionKeyPressed) {
         refreshStatusOverlayContent();
@@ -488,16 +511,8 @@ void App::onScopeDelayElapsed()
 
 bool App::shouldHideMainOverlay() const
 {
-    // A zero-capacity weapon keeps the main overlay hidden at all times,
-    // independent of the right-button scope state.
-    if (m_runtime.CurrentWeapon != 2) {
-        const int capacity =
-            runtimeCapacityForWeapon(m_runtime.CurrentWeapon);
-        if (capacity <= 0) {
-            return true;
-        }
-    }
-
+    // 隐藏只由“按住右键”决定：松开右键一律恢复显示，任何隐藏规则都不在
+    // 抬起路径上生效。
     if (!m_rightButtonHeld) {
         return false;
     }
@@ -566,7 +581,7 @@ bool App::handleWeaponKey(const KeyBinding& binding)
 bool App::handleToggleKey(const KeyBinding& binding)
 {
     const UserConfig& config = m_configManager->config();
-    if (binding != config.ToggleKey1 && binding != config.ToggleKey2) {
+    if (binding != config.ToggleKey) {
         return false;
     }
 
@@ -595,6 +610,21 @@ bool App::handleCapacityKey(const KeyBinding& binding)
     }
     if (binding == config.CapacityDecKey) {
         adjustCurrentCapacity(-1);
+        return true;
+    }
+    return false;
+}
+
+bool App::handleAmmoStateKey(const KeyBinding& binding)
+{
+    const UserConfig& config = m_configManager->config();
+
+    if (binding == config.AmmoStateIncKey) {
+        adjustCurrentAmmoState(1);
+        return true;
+    }
+    if (binding == config.AmmoStateDecKey) {
+        adjustCurrentAmmoState(-1);
         return true;
     }
     return false;
@@ -688,6 +718,24 @@ void App::adjustCurrentCapacity(int delta)
 
     // Boundary presses still restart the debounce and eventually save.
     m_capacityDebounceTimer->start();
+}
+
+void App::adjustCurrentAmmoState(int delta)
+{
+    if (m_runtime.CurrentWeapon == 2) {
+        // Knife: no ammo state.
+        return;
+    }
+
+    const int capacity = runtimeCapacityForWeapon(m_runtime.CurrentWeapon);
+    if (capacity <= 0) {
+        // A zero-capacity weapon has no valid state to step through.
+        return;
+    }
+
+    int& state = ammoStateForWeapon(m_runtime.CurrentWeapon);
+    // The state stops at the boundaries instead of wrapping around.
+    state = std::clamp(state + delta, 0, capacity - 1);
 }
 
 void App::syncRuntimeCapacitiesToConfig()

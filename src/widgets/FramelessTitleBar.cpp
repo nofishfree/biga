@@ -9,7 +9,7 @@ FramelessTitleBar::FramelessTitleBar(QWidget* parent)
 {
     setObjectName(QStringLiteral("titleBar"));
     setAttribute(Qt::WA_StyledBackground, true);
-    setFixedHeight(38);
+    setFixedHeight(30);
     setCursor(Qt::SizeAllCursor);
 
     auto* layout = new QHBoxLayout(this);
@@ -19,7 +19,7 @@ FramelessTitleBar::FramelessTitleBar(QWidget* parent)
 
     m_closeButton = new QPushButton(QStringLiteral("×"), this);
     m_closeButton->setObjectName(QStringLiteral("closeButton"));
-    m_closeButton->setFixedSize(44, 38);
+    m_closeButton->setFixedSize(38, 30);
     m_closeButton->setCursor(Qt::PointingHandCursor);
     m_closeButton->setToolTip(QStringLiteral("关闭"));
     m_closeButton->setAccessibleName(QStringLiteral("关闭"));

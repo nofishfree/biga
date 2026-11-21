@@ -1,20 +1,22 @@
 # 设置窗口布局
 
-依据 `dev_docs/设置界面布局.txt` 重排。原文有一处“内容纵向分为以下 2 组”的
-笔误，后面实际列出了 3 个分组，代码按 3 个分组实现。
+本窗口按最初的需求稿实现，之后的调整如下：取消独立的“切换与重置”分组，
+其内容全部并入“参数”；“容量+1/容量-1”也从“武器热键”移入“参数”；“参数”
+新增“状态+1/状态-1”（默认 `→`/`←`）。界面纵向只剩两个分组卡片。2026-11-21
+又按“够用就行”整体压缩了控件与窗口尺寸，并把武器热键的容量标签统一为“容量”、
+“重置/恢复”简化为“重置”，参数栏的容量与状态改成左右两列成对排列。
 
 ## 1. 布局树
 
 ```text
-SettingsWindow (QWidget, frameless, fixed width 760, height=sizeHint)
+SettingsWindow (QWidget, frameless, fixed width 540, height=sizeHint)
 └─ QVBoxLayout (margins 0, spacing 0)
-   ├─ FramelessTitleBar (height 38)
+   ├─ FramelessTitleBar (height 30)
    │  └─ QHBoxLayout
    │     ├─ addStretch
-   │     └─ QPushButton "×" (44×38, objectName=closeButton)
+   │     └─ QPushButton "×" (38×30, objectName=closeButton)
    └─ settingsContent
-      └─ QVBoxLayout (margins 20,16,20,20; spacing 16)
-         ├─ sectionCard "切换与重置"
+      └─ QVBoxLayout (margins 12,10,12,12; spacing 12)
          ├─ sectionCard "武器热键"
          ├─ sectionCard "参数"
          └─ addStretch(1)
@@ -22,46 +24,34 @@ SettingsWindow (QWidget, frameless, fixed width 760, height=sizeHint)
 
 ## 2. QGridLayout 草图
 
-统一列宽：
+两张卡片的列宽不完全相同：`武器热键` 右侧要放容量标签和容量数字框，
+`参数` 每行并排放两组“标签 + 控件”，因此把第 2 列当标签列、第 3 列当控件列。
 
-```text
-col0 标签 128
-col1 键入框 156
-col2 键入框 156
-col3 容量标签 76
-col4 数字框 108
-col5 伸缩列
-水平间距 10，垂直间距 8
-```
-
-### 组 1：切换与重置
-
-```text
-       col0        col1        col2
-row0   切换        ToggleKey1  ToggleKey2
-row1   重置/恢复   ResetKey
-row2   白点大小    DotSize
-```
-
-### 组 2：武器热键（容量在第 1、2、4 行；容量增减在本组末尾）
+### 组 1：武器热键（容量数字框在第 1、2、4 行，容量标签统一显示“容量”）
 
 ```text
        col0        col1          col2          col3       col4
-row0   一号武器    Weapon1Key1   Weapon1Key2   一号容量   Weapon1Capacity
-row1   二号武器    Weapon2Key1   Weapon2Key2   二号容量   Weapon2Capacity
+row0   一号武器    Weapon1Key1   Weapon1Key2   容量       Weapon1Capacity
+row1   二号武器    Weapon2Key1   Weapon2Key2   容量       Weapon2Capacity
 row2   刀          KnifeKey1     KnifeKey2
-row3   手枪        PistolKey1    PistolKey2    手枪容量   PistolCapacity
-row4   容量+1      CapacityIncKey
-row5   容量-1      CapacityDecKey
+row3   手枪        PistolKey1    PistolKey2    容量       PistolCapacity
 ```
 
-### 组 3：参数
+列宽：col0 标签 110、col1/col2 键入框 116、col3 容量标签 40、col4 数字框 76。
+
+### 组 2：参数（每行两组：标签 + 控件；左列容量、右列状态）
 
 ```text
-       col0                col1                       col2~col4
-row0   开镜延迟(ms)        ScopeDelay
-row1   状态显示缩放比例    QSlider (colspan=4) ->     [1.0]
+       col0              col1              col2              col3
+row0   切换              ToggleKey         重置              ResetKey
+row1   容量+1            CapacityIncKey    状态+1            AmmoStateIncKey
+row2   容量-1            CapacityDecKey    状态-1            AmmoStateDecKey
+row3   白点大小          DotSize           开镜延迟(ms)      ScopeDelay
+row4   状态显示缩放比例  QSlider (colspan=3) ->                [1.0]
 ```
+
+列宽：col0/col2 标签 110、col1/col3 控件 116（数字框固定 76 宽，左对齐落在
+116 宽的列里）。水平间距 8，垂直间距 6。
 
 缩放滑块：
 
@@ -75,19 +65,20 @@ row1   状态显示缩放比例    QSlider (colspan=4) ->     [1.0]
 
 | 项目 | 尺寸 |
 | --- | --- |
-| 窗口宽度 | 760px |
-| 标题栏高度 | 38px |
-| 关闭按钮 | 44×38px |
-| 内容左右边距 | 20px |
-| 内容上下边距 | 16 / 20px |
-| 分组间距 | 16px |
-| 卡片内边距 | 14 / 12 / 14 / 14px |
-| 标签列 | 128px，右对齐、垂直居中 |
-| 键入框 | 156×32px |
-| 容量标签 | 76px，右对齐 |
-| 数字框 | 108×32px |
-| 缩放数值标签 | 44px |
-| 行间距 | 8px |
+| 窗口宽度 | 540px |
+| 窗口高度 | 约 422px（由 sizeHint 计算） |
+| 标题栏高度 | 30px |
+| 关闭按钮 | 38×30px |
+| 内容左右边距 | 12px |
+| 内容上下边距 | 10 / 12px |
+| 分组间距 | 12px |
+| 卡片内边距 | 10 / 8 / 10 / 10px |
+| 标签列 | 110px，右对齐、垂直居中 |
+| 键入框 | 116×26px |
+| 容量标签 | 40px，右对齐 |
+| 数字框 | 76×26px |
+| 缩放数值标签 | 34px |
+| 行间距 | 6px |
 
 窗口高度由 `sizeHint()` 计算，默认在主屏可用区域居中。标题栏只负责拖动和关闭，
 没有标题文字、最小化、最大化。

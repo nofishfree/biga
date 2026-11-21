@@ -132,8 +132,7 @@ UserConfig UserConfig::defaults()
 {
     UserConfig config;
 
-    config.ToggleKey1 = keyboardBinding(0x30, false, 'B');
-    config.ToggleKey2 = keyboardBinding(0x0B, false, '0');
+    config.ToggleKey = keyboardBinding(0x30, false, 'B');
     config.ResetKey = keyboardBinding(0x0D, false, 0xBB);  // VK_OEM_PLUS ("=")
 
     config.Weapon1Key1 = keyboardBinding(0x02, false, '1');
@@ -155,14 +154,16 @@ UserConfig UserConfig::defaults()
     config.CapacityIncKey = keyboardBinding(0x48, true, 0x26);  // VK_UP
     config.CapacityDecKey = keyboardBinding(0x50, true, 0x28);  // VK_DOWN
 
+    config.AmmoStateIncKey = keyboardBinding(0x4D, true, 0x27);  // VK_RIGHT
+    config.AmmoStateDecKey = keyboardBinding(0x4B, true, 0x25);  // VK_LEFT
+
     return config;
 }
 
 QJsonObject UserConfig::toJson() const
 {
     QJsonObject object;
-    object.insert(QStringLiteral("toggleKey1"), ToggleKey1.toJsonValue());
-    object.insert(QStringLiteral("toggleKey2"), ToggleKey2.toJsonValue());
+    object.insert(QStringLiteral("toggleKey"), ToggleKey.toJsonValue());
     object.insert(QStringLiteral("resetKey"), ResetKey.toJsonValue());
 
     object.insert(QStringLiteral("weapon1Key1"), Weapon1Key1.toJsonValue());
@@ -186,6 +187,11 @@ QJsonObject UserConfig::toJson() const
     object.insert(QStringLiteral("capacityDecKey"),
                   CapacityDecKey.toJsonValue());
 
+    object.insert(QStringLiteral("ammoStateIncKey"),
+                  AmmoStateIncKey.toJsonValue());
+    object.insert(QStringLiteral("ammoStateDecKey"),
+                  AmmoStateDecKey.toJsonValue());
+
     object.insert(QStringLiteral("statusOverlayEnabled"), StatusOverlayEnabled);
     object.insert(QStringLiteral("statusOverlayX"), StatusOverlayX);
     object.insert(QStringLiteral("statusOverlayY"), StatusOverlayY);
@@ -197,9 +203,7 @@ std::optional<UserConfig> UserConfig::fromJson(const QJsonObject& object)
 {
     UserConfig config = defaults();
 
-    if (!readBinding(object, QStringLiteral("toggleKey1"), &config.ToggleKey1)
-        || !readBinding(object, QStringLiteral("toggleKey2"),
-                        &config.ToggleKey2)
+    if (!readBinding(object, QStringLiteral("toggleKey"), &config.ToggleKey)
         || !readBinding(object, QStringLiteral("resetKey"), &config.ResetKey)
         || !readBinding(object, QStringLiteral("weapon1Key1"),
                         &config.Weapon1Key1)
@@ -220,7 +224,11 @@ std::optional<UserConfig> UserConfig::fromJson(const QJsonObject& object)
         || !readBinding(object, QStringLiteral("capacityIncKey"),
                         &config.CapacityIncKey)
         || !readBinding(object, QStringLiteral("capacityDecKey"),
-                        &config.CapacityDecKey)) {
+                        &config.CapacityDecKey)
+        || !readBinding(object, QStringLiteral("ammoStateIncKey"),
+                        &config.AmmoStateIncKey)
+        || !readBinding(object, QStringLiteral("ammoStateDecKey"),
+                        &config.AmmoStateDecKey)) {
         return std::nullopt;
     }
 

@@ -25,11 +25,11 @@ UI / 控制层
 
 | 类 | 职责 |
 | --- | --- |
-| `App` | 单例编排器。创建窗口/托盘/RawInput/定时器；处理武器、切换、重置、容量与右键隐藏规则；统一退出。 |
+| `App` | 单例编排器。创建窗口/托盘/RawInput/定时器；处理武器、切换、重置、容量、状态与右键隐藏规则；统一退出。 |
 | `MainOverlayWindow` | 只覆盖内容区域。白点由 `paintEvent` 绘制；图片按原始尺寸绘制；透明、置顶、无边框、Tool、点击穿透、不抢焦点、居中。 |
 | `RawInputManager` | 创建原生消息窗口，注册键盘/鼠标 `RIDEV_INPUTSINK`，解析 `WM_INPUT`，忽略键盘自动重复，输出 `KeyBinding` 与右键状态。 |
-| `StatusOverlayWindow` | 独立的透明置顶状态窗口。自绘当前武器数字、右上上标和右下下标；整个窗口可左键拖动；尺寸只随缩放比例和内容变化；保存/恢复左上角坐标。 |
-| `ConfigManager` | 启动读取一次 `user-config.json`；当前 schema 不兼容时整体使用默认值；后台专用线程串行保存最新快照；临时文件 + Win32 原子替换；所有异常在内部捕获并写日志；提供等待接口。 |
+| `StatusOverlayWindow` | 独立的透明置顶状态窗口。自绘当前武器数字、右上上标和右下下标；整个窗口鼠标穿透，只有左右键同时按住并落在居中的 50×50 方块内才拖动；尺寸只随缩放比例和内容变化；保存/恢复左上角坐标。 |
+| `ConfigManager` | 启动读取一次 `user-config.json`；当前 schema 不兼容时整体使用默认值并立即把新 schema 的默认配置写回同一文件；后台专用线程串行保存最新快照；临时文件 + Win32 原子替换；所有异常在内部捕获并写日志；提供等待接口。 |
 | `UserConfig` | 题目给定的全部字段、默认值、当前 schema 的严格 JSON 序列化/反序列化；不包含图片路径。 |
 | `RuntimeState` | `CurrentWeapon`、三个弹药状态、三个运行时容量副本。 |
 | `KeyBinding` | 键盘扫描码 + 扩展标志 + 规范化 VK；鼠标中键/侧键/滚轮；显示名；JSON；相等匹配。 |
@@ -84,14 +84,22 @@ WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
 3. 验证可解码后，用 `QSaveFile` 将原始字节覆盖到固定文件
    `%APPDATA%\BigA\current-image.img`。
 4. 启动时固定文件存在且可解码则显示图片，否则显示白点。
-5. “还原白点”只切换显示状态，不删除固定文件。
+5. “还原白点”切回白点的同时删除固定文件，因此“关闭再启动”不会再显示上一次
+   的图片。删除失败时保留白点显示并写日志，同时弹窗提示缓存未能删除。
+   配置（`user-config.json`）里始终不含任何图片路径或图片数据，固定文件是图片的
+   唯一状态，所以删除它就是“清掉图片”。
 
 ### 状态显示窗口
 
 `StatusOverlayWindow` 是独立于主叠层的第二个透明置顶窗口：
 
 - 无标题栏、无边框、`Qt::Tool`、`WS_EX_NOACTIVATE`、`WS_EX_TOOLWINDOW`，
-  使用 `HWND_TOPMOST`；不设置 `WS_EX_TRANSPARENT`，整个窗口可接收左键拖动。
+  使用 `HWND_TOPMOST`；设置 `WS_EX_TRANSPARENT`，整个窗口对鼠标穿透，单击不会
+  被状态窗口吞掉。
+- 拖动不依赖鼠标事件：窗口显示期间每 10ms 轮询 `GetAsyncKeyState`，
+  左右键同时按下且 `QCursor::pos()` 落在居中的固定 50×50 方块内才开始拖动，
+  之后按光标位移移动窗口；任一键抬起立即结束并发出 `dragFinished`。
+  非同时按下（只按左键/只按右键/单击）一律穿透到下面的窗口。
 - 自绘当前武器数字：一号~手枪映射为 1~4；非刀状态在数字右上方绘制弹药状态、
   右下方绘制容量；刀只绘制大号 3。
 - 主数字 40px、上下标 16px（1.0 比例），纯白色填充，无描边、无阴影。
@@ -200,52 +208,51 @@ quint16 virtualKey;
 ```
 
 - 武器键：仅改 `CurrentWeapon`。
-- 切换键：当前为刀则忽略；容量为 0 则忽略；否则
+- 切换键（默认 `B`，唯一）：当前为刀则忽略；容量为 0 则忽略；否则
   `(state + 1) % runtimeCapacity`。
 - 重置键：`CurrentWeapon=0`，三个弹药状态归零；容量副本不变。
 - 容量+1/-1：
   - 当前为刀：立即返回，不改容量、不动现有计时器、不保存。
   - 否则修改当前武器运行时容量，`clamp(0, 9)`；到边界仍重启 3 秒计时。
   - 3 秒到期后把三个运行时容量同步回 `UserConfig`，调用统一异步保存。
+- 状态+1/-1（默认 `→`/`←`）：
+  - 当前为刀或运行时容量为 0：立即返回。
+  - 否则 `state = clamp(state + delta, 0, capacity - 1)`，到边界停住不回绕。
+  - 弹药状态不入配置，因此不触发防抖计时器与保存，只刷新状态显示窗口和
+    主窗口可见性。
 - 设置关闭：停止容量防抖、容量副本取界面值、重置四个运行时状态、保存。
 
 ### 右键开镜隐藏状态机
 
 ```text
-容量优先规则（任何时刻）:
-  if (CurrentWeapon != 刀 && capacity == 0)
-      hide 主窗口
-      该规则不受 rightHeld / ScopeDelayMs 影响；
-      右键按下、保持、抬起都不会重新显示。
-
 右键按下:
   rightHeld = true
   取消已有 QTimer，按 ScopeDelayMs 重新 singleShot
-  应用容量优先规则
+  延迟未到期 -> 不隐藏（与其他武器一致）
 
 计时器到期:
   if (!rightHeld) return
   if (CurrentWeapon == 刀) hide
+  else if (capacity <= 0) hide
   else if (ammoState == capacity - 1) 不隐藏
   else hide
 
 右键保持期间，延迟已结束且按下已绑定功能的按键:
   用最新 CurrentWeapon / ammoState / capacity 立即重新判断
-  容量为 0 -> 立即 hide
   需要隐藏 -> hide；已经不需要隐藏 -> show
 
 右键抬起:
   rightHeld = false
   取消计时器
-  容量为 0 -> hide
-  否则 show overlay
+  一律 show overlay
+  抬起路径上没有任何隐藏判断，容量/状态为 0 也一样显示
 ```
 
 如果功能键在 ScopeDelayMs 到期前按下，普通开镜隐藏不提前执行；仍在计时的
-singleShot 到期后会使用最新数据判断。容量从 0 恢复到非 0 时立即按当前右键/
-开镜状态重新判断；容量变为 0 时立即隐藏。
+singleShot 到期后会使用最新数据判断。容量从 0 恢复到非 0、或从非 0 变为 0 时，
+都立即按当前右键/开镜状态重新判断：容量为 0 只在按住右键期间隐藏，松开即显示。
 
-`ScopeDelayMs` 只用于开镜隐藏，不改变容量为 0 的强制隐藏规则。
+`ScopeDelayMs` 只影响按下后开始隐藏的时刻，不影响抬起恢复显示。
 
 ## 6. 保存与退出
 
@@ -255,7 +262,9 @@ singleShot 到期后会使用最新数据判断。容量从 0 恢复到非 0 时
 - 读取器只接受当前 schema：所有字段必须存在，布尔/整数/绑定的类型与取值范围必须
   有效；额外字段忽略。
 - 文件不存在、JSON 解析失败、字段缺失、类型错误或范围错误时，整体读取失败，
-  `ConfigManager` 保持 `UserConfig::defaults()` 并写一条警告日志。
+  `ConfigManager` 保持 `UserConfig::defaults()`，写一条警告日志，并立即
+  `SaveUserConfigAsync()` 把当前 schema 的默认配置写回同一路径，旧格式文件被
+  原子替换掉，不会在下次启动被重复读取。
 - 不保留旧版本迁移、逐字段默认或部分成功读取逻辑；旧格式文件不会与默认值混合。
 
 ### 异步保存

@@ -1,13 +1,15 @@
 #pragma once
 
 #include <QPoint>
+#include <QRect>
 #include <QSize>
 #include <QWidget>
 
 class QByteArray;
-class QMouseEvent;
+class QHideEvent;
 class QPaintEvent;
 class QShowEvent;
+class QTimer;
 
 class StatusOverlayWindow final : public QWidget {
     Q_OBJECT
@@ -34,15 +36,17 @@ signals:
 protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
     bool nativeEvent(const QByteArray& eventType, void* message,
                      qintptr* result) override;
 
 private:
     void updateContentSize();
     QSize contentSizeForScale(double scale) const;
+    // 居中的固定 50×50 拖动判定方块（窗口坐标）。窗口对鼠标完全穿透，
+    // 只有在这个方块内同时按住左右键才会开始拖动。
+    QRect dragRect() const;
+    void pollDrag();
     void applyNativeWindowStyles();
 
     int m_currentWeapon = 0;
@@ -50,6 +54,7 @@ private:
     int m_capacity = 0;
     double m_scale = 1.0;
 
+    QTimer* m_dragTimer = nullptr;
     bool m_dragging = false;
     QPoint m_dragOffset;
 };
